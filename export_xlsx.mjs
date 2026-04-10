@@ -46,6 +46,31 @@ export function loadXlsx() {
 }
 
 /**
+ * @param {unknown} err
+ */
+function isFsNotFoundError(err) {
+  return Boolean(
+    err &&
+      typeof err === "object" &&
+      "name" in err &&
+      /** @type {{ name: string }} */ (err).name === "NotFoundError"
+  );
+}
+
+/**
+ * Komunikat przy istniejącym, ale nieczytelnym wyniku dnia (spec §3.3).
+ * @param {string} fileBaseName np. wynik_2026-04-10.xlsx
+ * @param {unknown} cause
+ */
+export function excelExistingReadErrorMessage(fileBaseName, cause) {
+  const detail = cause instanceof Error ? cause.message : String(cause);
+  return (
+    `Nie można wczytać istniejącego pliku ${fileBaseName} (uszkodzony lub nie ten format). ` +
+    `Szczegóły: ${detail}. Zapis przerwany — napraw lub usuń plik i uruchom ponownie. PDF nie zostały przeniesione.`
+  );
+}
+
+/**
  * @param {string} fileName
  * @param {ProtocolFields} parsed
  * @param {{ ok: boolean, uwagi_excel: string }} quality
@@ -105,10 +130,20 @@ export async function mergeAndBuildWorkbookBlob(dirHandle, dateYmd, newRows) {
       const fh = await dirHandle.getFileHandle(name);
       const buf = await (await fh.getFile()).arrayBuffer();
       const wb = XLSX.read(buf, { type: "array" });
+      if (!wb.SheetNames?.length) {
+        throw new Error("Skoroszyt nie zawiera arkuszy.");
+      }
       const ws = wb.Sheets[wb.SheetNames[0]];
+      if (!ws) {
+        throw new Error("Brak pierwszego arkusza.");
+      }
       existing = XLSX.utils.sheet_to_json(ws, { defval: "" });
-    } catch {
-      existing = [];
+    } catch (e) {
+      if (isFsNotFoundError(e)) {
+        existing = [];
+      } else {
+        throw new Error(excelExistingReadErrorMessage(name, e));
+      }
     }
   }
   const existingNorm = existing.map((row) => normalizeExcelRow(/** @type {Record<string, unknown>} */ (row)));

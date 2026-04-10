@@ -26,10 +26,17 @@ const el = {
   btnDir: document.getElementById("btnDir"),
   btnStop: document.getElementById("btnStop"),
   btnLogDownload: document.getElementById("btnLogDownload"),
+  btnLogClear: document.getElementById("btnLogClear"),
   chkRecurse: document.getElementById("chkRecurse"),
   inpOcrMin: document.getElementById("inpOcrMin"),
   inputDir: document.getElementById("inputDir"),
 };
+
+function setBatchFormDisabled(disabled) {
+  if (el.chkRecurse) el.chkRecurse.disabled = disabled;
+  if (el.inpOcrMin) el.inpOcrMin.disabled = disabled;
+  if (el.btnLogClear) el.btnLogClear.disabled = disabled;
+}
 
 const STATUS_IDLE = "Oczekuję na start.";
 const SKIP_DIR_NAMES = new Set(["done", "problematyczne"]);
@@ -295,6 +302,7 @@ async function runQueue(jobs, dirHandle) {
   batchAborted = false;
   el.btnDir.disabled = true;
   el.btnStop.disabled = false;
+  setBatchFormDisabled(true);
   el.log.textContent = "";
   el.prog.max = jobs.length;
   el.prog.value = 0;
@@ -315,6 +323,7 @@ async function runQueue(jobs, dirHandle) {
         busy = false;
         el.btnDir.disabled = false;
         el.btnStop.disabled = true;
+        setBatchFormDisabled(false);
         return;
       }
     } catch {
@@ -322,6 +331,7 @@ async function runQueue(jobs, dirHandle) {
       busy = false;
       el.btnDir.disabled = false;
       el.btnStop.disabled = true;
+      setBatchFormDisabled(false);
       return;
     }
   }
@@ -422,12 +432,14 @@ async function runQueue(jobs, dirHandle) {
     }
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    setStatus(`Błąd zapisu Excel: ${msg}`);
+    const excelReadFail = /wczytać istniejącego pliku|nie zostały przeniesione/i.test(msg);
+    setStatus(excelReadFail ? msg : `Błąd zapisu Excel: ${msg}`);
     appendLog(`\n── Błąd wsadowy ──\n${msg}\n`);
   } finally {
     busy = false;
     el.btnDir.disabled = false;
     el.btnStop.disabled = true;
+    setBatchFormDisabled(false);
   }
 }
 
@@ -439,6 +451,17 @@ el.btnLogDownload?.addEventListener("click", () => {
   const t = el.log.textContent || "";
   const blob = new Blob([t], { type: "text/plain;charset=utf-8" });
   downloadBlob(blob, `ocr_protokoly_log_${localDateYmd()}.txt`);
+});
+
+el.btnLogClear?.addEventListener("click", () => {
+  if (busy) return;
+  el.log.textContent = "";
+});
+
+window.addEventListener("keydown", (e) => {
+  if (!busy || e.key !== "Escape") return;
+  batchAborted = true;
+  e.preventDefault();
 });
 
 el.btnDir.addEventListener("click", async () => {
@@ -491,4 +514,3 @@ el.inputDir.addEventListener("change", async () => {
   jobs.sort((a, b) => a.excelName.localeCompare(b.excelName, "pl"));
   await runQueue(jobs, null);
 });
-    

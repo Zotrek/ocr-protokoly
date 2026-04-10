@@ -10,4 +10,4 @@ Odczyt skanów protokołów (OCR) w przeglądarce — osobny projekt względem `
 
 Uruchomienie lokalne: z tego katalogu `python3 -m http.server 8765`, potem w Chrome `http://127.0.0.1:8765`.
 
-Testy bez PDF: `node tests/protocol_parse_selftest.mjs` oraz `node tests/pdf_errors_selftest.mjs`
+Testy bez PDF: `node tests/protocol_parse_selftest.mjs`, `node tests/pdf_errors_selftest.mjs`, `node tests/excel_export_selftest.mjs`

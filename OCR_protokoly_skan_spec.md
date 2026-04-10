@@ -74,7 +74,7 @@ Kolejność kolumn może być ustalona przy implementacji; powyższa lista jest 
   3. **Usunąć** stary plik z dysku.
   4. **Zapisać** nowy plik o **tej samej nazwie** `wynik_YYYY-MM-DD.xlsx` zawierający **połączoną** treść (stare + nowe wiersze).
 
-Cel kroku 3–4: jedna spójna nazwa dziennie i atomowa zamiana pliku (bez pozostawiania dwóch wersji). Przy błędzie odczytu istniejącego pliku (uszkodzony .xlsx) — **komunikat błędu** i **przerwanie zapisu** lub reguła awaryjna do ustalenia przy implementacji.
+Cel kroku 3–4: jedna spójna nazwa dziennie i atomowa zamiana pliku (bez pozostawiania dwóch wersji). Przy błędzie odczytu istniejącego pliku (uszkodzony .xlsx) — **komunikat błędu** i **przerwanie zapisu** (POC: `mergeAndBuildWorkbookBlob` w `export_xlsx.mjs`; PDF nie są przenoszone, bo zapis Excela nie dochodzi do skutku).
 
 ---
 

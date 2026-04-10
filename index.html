@@ -303,6 +303,28 @@
         font-size: 0.82rem;
       }
 
+      .log-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.35rem;
+        align-items: center;
+      }
+
+      .kbd-hint {
+        margin: 0;
+        font-size: 0.8rem;
+        color: var(--text-muted);
+      }
+
+      kbd {
+        font-family: var(--mono);
+        font-size: 0.78em;
+        padding: 0.12em 0.4em;
+        border: 1px solid var(--border);
+        border-radius: 4px;
+        background: var(--bg-elevated);
+      }
+
     </style>
   </head>
   <body>
@@ -344,12 +366,16 @@
       <section class="panel status-row">
         <div id="status" aria-live="polite">Oczekuję na start.</div>
         <progress id="prog" max="100" value="0"></progress>
+        <p class="kbd-hint">Podczas obróbki: <kbd>Esc</kbd> — przerwij batch (jak przycisk „Przerwij”).</p>
       </section>
 
       <section class="panel">
         <div class="log-header">
           <h2>Podgląd rozpoznanego tekstu</h2>
-          <button type="button" class="btn-secondary btn-inline" id="btnLogDownload">Pobierz log (.txt)</button>
+          <div class="log-actions" role="group" aria-label="Akcje logu">
+            <button type="button" class="btn-secondary btn-inline" id="btnLogClear">Wyczyść</button>
+            <button type="button" class="btn-secondary btn-inline" id="btnLogDownload">Pobierz log (.txt)</button>
+          </div>
         </div>
         <pre id="log"></pre>
       </section>
