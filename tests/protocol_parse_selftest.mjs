@@ -66,4 +66,14 @@ assert.equal(row.numer_zlecenia, "1");
 assert.equal(row.numer_plomby, "700000000340087");
 assert.equal(row.Uwagi_odczyt, "ok");
 
+const ocrLike = parseProtocolText(`
+Zlecenie  transportowe  nr:  99
+Przewoźnik: Firma Test
+Miejsce dostawy: X
+Lista odebranych plomb:
+1.  700000000340087  
+`);
+assert.equal(ocrLike.numer_zlecenia, "99");
+assert.deepEqual(ocrLike.plomby, ["700000000340087"]);
+
 console.log("protocol_parse_selftest: OK");

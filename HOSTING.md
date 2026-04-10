@@ -9,7 +9,7 @@ Aplikacja musi być serwowana przez **HTTPS** (albo `http://127.0.0.1` przy dev)
 1. Załóż konto na [https://dash.cloudflare.com/](https://dash.cloudflare.com/) (darmowe).
 2. W menu: **Workers & Pages** → **Create** → zakładka **Pages** → **Upload assets**.
 3. Nazwa projektu (np. `ocr-protokoly`) → **Create project**.
-4. Spakuj **tylko** plik `index.html` do ZIP (albo wrzuć cały folder `OCR_protokoly` zawierający `index.html` w **katalogu głównym** archiwum — po rozpakowaniu Cloudflare musi „widzieć” `index.html` jako stronę główną).
+4. Spakuj **cały** katalog aplikacji do ZIP: `index.html`, `app.mjs`, `protocol_parse.mjs`, `roi_ocr.mjs`, `export_xlsx.mjs`, `pdf_errors.mjs`, folder `calibration/` (np. `roi_default.json`). W **katalogu głównym** archiwum musi być `index.html` jako strona główna.
 5. Przeciągnij ZIP → **Deploy site**.
 6. Po chwili dostaniesz adres `https://<nazwa>.pages.dev` — tego linku używa klient w **Chrome**.
 

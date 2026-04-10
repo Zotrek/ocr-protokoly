@@ -128,7 +128,7 @@ Plik trafia do **`done`** tylko wtedy, gdy **wszystkie** pola krytyczne spełnia
 
 ## 7. Implementacja — faza początkowa (uzgodniona)
 
-- **Jeden plik wejściowy aplikacji:** `index.html` (logika w module `<script type="module">`, style inline; zależności z **CDN** — bez `npm` po stronie klienta).
+- **Punkt wejścia:** `index.html` (style inline) + `app.mjs` i moduły pomocnicze (`protocol_parse.mjs`, `roi_ocr.mjs`, `export_xlsx.mjs`, `pdf_errors.mjs`); zależności z **CDN** — bez `npm` po stronie klienta.
 - **Kolejka:** pliki PDF przetwarzane **sekwencyjnie** (jeden po drugim), bez równoległego OCR wielu dokumentów.
 - **Jeden worker OCR:** pojedyncza instancja Tesseract.js (`createWorker`), ponowne użycie dla całej kolejki w danym uruchomieniu — mniejsze szczytowe zużycie CPU/RAM niż wiele workerów.
 - **Dalsze etapy** (Excel, `done` / `problematyczne`, ROI, walidacja regexów) — po próbkach skanów; patrz sekcja 8.
