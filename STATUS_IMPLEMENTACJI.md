@@ -17,9 +17,10 @@ Krótki przegląd **co działa w POC** i **co zostaje do zrobienia** (zwłaszcza
 ### OCR / PDF
 - **Warstwa tekstowa PDF** (eksport Word): odczyt bez OCR, jeśli heurystyka uzna tekst za pełny protokół.
 - **Skany / brak tekstu na str. 1**: OCR strony 1 przez **ROI** (`calibration/roi_default.json` + [`roi_ocr.mjs`](roi_ocr.mjs)), przy słabej strukturze — drugi przebieg **cała strona 1**.
-- **Strony 2+** przy skanie (brak warstwy tekstowej): **bez OCR** — pusty tekst ze stron następnych, źródło w logu: „pominięto (… OCR tylko str. 1 — protokół)”. Gdy PDF ma **tekst natywny** na kolejnych stronach, jest on dalej **łączony** do parsowania (np. załączniki z tekstem).
+- **Strony 2+** przy skanie (brak warstwy tekstowej): domyślnie **bez OCR** — pusty tekst, źródło: „pominięto (…)”. **Wyjątek:** po złożeniu tekstu z całego PDF nadal **brak plomb** w parserze **i** strona 2 ma **pustą** warstwę tekstową → **jednorazowy OCR pełnej strony 2** (lista może być na drugiej kartce skanu).
+- Gdy PDF ma **tekst natywny** na kolejnych stronach, jest on **łączony** do parsowania (np. załączniki z tekstem).
 - **ROI wąska vs A4**: w `roi_default.json` jest **`narrow_page_width_pt_max`** (domyślnie **585** pt w przestrzeni PDF): strona węższa niż próg (np. skan ~578×824) używa **`regions_norm_narrow`**, szersza — **`regions_norm`**. Gdy progu szerokości **nie ma** w JSON, wybór „wąskiej” mapy pada na **`aspect_ratio_narrow_max`** (fallback).
-- **Ograniczenie:** jeśli **lista plomb** lub inne pole protokołu kiedykolwiek trafi na **str. 2+** bez warstwy tekstowej, obecna logika ich **nie odczyta** — wtedy trzeba rozszerzyć pipeline (np. OCR wybranych stron).
+- **Ograniczenie:** lista wyłącznie na **str. 3+** (skan bez tekstu), albo str. 2 z „śmieciową” warstwą tekstową zamiast obrazu — nadal bez pełnego wsparcia; str. 2 z pustą warstwą jest **OCR-owana** tylko gdy po str. 1 **brak plomb** w parserze.
 - **Pewność Tesseract**: przy **OCR ROI str. 1** (wybrana ścieżka ROI, nie pełna strona) — osobno **numer zlecenia / przewoźnik / lista plomb** vs próg (`niski_confidence_ocr_roi_*` w `Uwagi_odczyt`); przy **pełnej stronie 1** lub braku mapy ROI — jak wcześniej **jedna** wartość `niski_confidence_ocr(min)`. Regulacja progu w UI + `localStorage`.
 - **Zamknięcie karty**: `pagehide` → `terminate()` workera Tesseract (zwolnienie zasobów).
 - Czytelne błędy **pdf.js**: [`pdf_errors.mjs`](pdf_errors.mjs) (hasło, uszkodzony plik itd.).
@@ -83,4 +84,4 @@ Pełna lista checkboxów: **§8** w [`OCR_protokoly_skan_spec.md`](OCR_protokoly
 
 ---
 
-*Ostatnia aktualizacja dokumentu: 2026-04-10 — dopisano zachowanie str. 2+, ROI wąska/A4, test `roi_pick`, ograniczenie listy plomb na str. 2+.*
+*Ostatnia aktualizacja dokumentu: 2026-04-10 — m.in. `nativeTextLooksLikeProtocol`, OCR str. 2 przy braku plomb, ROI wąska/A4, test `roi_pick`.*

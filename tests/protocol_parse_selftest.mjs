@@ -8,9 +8,16 @@ import {
   protocolStructuralOk,
   protocolReadoutQuality,
   pickBetterParsedKey,
+  nativeTextLooksLikeProtocol,
   OCR_CONFIDENCE_MIN,
 } from "../protocol_parse.mjs";
 import { normalizeExcelRow } from "../export_xlsx.mjs";
+
+const LONG_NATIVE = `${"x".repeat(130)}\nZlecenie transportowe nr: 1\nPrzewoznik: ABC\nMiejsce dostawy: Y\nLista odebranych plomb:\n1. 700000000340087\n`;
+assert.ok(nativeTextLooksLikeProtocol(LONG_NATIVE));
+const LONG_NATIVE_OGONEK = LONG_NATIVE.replace("Przewoznik:", "Przewoźnik:");
+assert.ok(nativeTextLooksLikeProtocol(LONG_NATIVE_OGONEK));
+assert.ok(!nativeTextLooksLikeProtocol("Zlecenie transportowe nr: 1\nPrzewoznik: X\nLista odebranych plomb:\n1. 700000000340087\n"));
 
 const SYNTH = `Zlecenie transportowe nr: 42
 

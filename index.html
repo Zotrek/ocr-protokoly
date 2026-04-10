@@ -374,7 +374,7 @@
           <div class="ocr-threshold-block">
             <label
               for="inpOcrMin"
-              title="Tesseract zwraca pewność rozpoznania w skali 0–100 (wyżej = pewniejszy odczyt). Dla każdego pliku bierzemy najniższą wartość spośród fragmentów, na których wykonano OCR. Jeśli jest niższa niż ustawiony próg, PDF trafia do folderu „problematyczne” — także wtedy, gdy tekst nadal daje się sparsować. Gdy dokument ma warstwę tekstową i nie uruchamiamy OCR, próg nie jest stosowany."
+              title="Skala 0–100 (pewność Tesseract): dla pliku używana jest najniższa wartość z przebiegów OCR. Poniżej progu → folder problematyczne, nawet przy poprawnym tekście. Przy PDF z samą warstwą tekstową (bez OCR) próg nie obowiązuje. Dłuższy opis: najedź kursorem na etykietę „Próg OCR”."
             >
               Próg OCR
             </label>
@@ -386,11 +386,10 @@
               step="1"
               value="55"
               aria-describedby="hintOcrMin"
+              title="Skala 0–100 (pewność Tesseract): dla pliku używana jest najniższa wartość z przebiegów OCR. Poniżej progu → folder problematyczne, nawet przy poprawnym tekście. Przy PDF z samą warstwą tekstową (bez OCR) próg nie obowiązuje. Dłuższy opis: najedź kursorem na etykietę „Próg OCR”."
             />
             <p id="hintOcrMin" class="field-hint" role="note">
-              Skala 0–100 (pewność Tesseract): dla pliku używana jest <strong>najniższa</strong> wartość z przebiegów OCR.
-              Poniżej progu → folder <code style="font-family: var(--mono); font-size: 0.9em">problematyczne</code>, nawet przy poprawnym tekście.
-              Przy PDF z samą warstwą tekstową (bez OCR) próg <strong>nie obowiązuje</strong>. Dłuższy opis: najedź kursorem na etykietę „Próg OCR”.
+              Wartość 0–100. Pełny opis działania progu — <strong>podpowiedź po najechaniu</strong> na etykietę „Próg OCR” lub na pole obok.
             </p>
           </div>
         </div>

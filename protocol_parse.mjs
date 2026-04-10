@@ -20,6 +20,24 @@ const RE_PLOMBA_WIERSZ = /^\s*(\d+)\.\s*((?:\d|\s){12,40})\s*$/;
 export const OCR_CONFIDENCE_MIN = 55;
 
 /**
+ * Czy warstwa tekstowa PDF wygląda na pełny protokół (unikamy zbędnego OCR str. 1).
+ * Uwzględnia „Przewoznik” bez polskich znaków — częsty eksport PDF.
+ * @param {string} s
+ */
+export function nativeTextLooksLikeProtocol(s) {
+  const t = s.toLowerCase();
+  const hasCarrier = t.includes("przewoznik") || t.includes("przewoźnik");
+  return (
+    s.trim().length > 120 &&
+    t.includes("zlecenie") &&
+    t.includes("transportowe") &&
+    hasCarrier &&
+    t.includes("lista") &&
+    t.includes("plomb")
+  );
+}
+
+/**
  * @param {string} raw
  * @returns {ProtocolFields}
  */

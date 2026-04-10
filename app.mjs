@@ -5,6 +5,7 @@ import {
   protocolReadoutQuality,
   pickBetterParsedKey,
   protocolStructuralOk,
+  nativeTextLooksLikeProtocol,
   OCR_CONFIDENCE_MIN,
 } from "./protocol_parse.mjs";
 import { loadRoiDefault, ocrPage1RoiStitched, ocrFullPageText } from "./roi_ocr.mjs";
@@ -142,19 +143,6 @@ async function extractTextNative(page) {
   return lines.join("\n");
 }
 
-/** Heurystyka: czy wygląda na treść protokołu z szablonu (nie pusty / nie „śmieciowy” fragment). */
-function looksLikeProtocolText(s) {
-  const t = s.toLowerCase();
-  return (
-    s.trim().length > 120 &&
-    t.includes("zlecenie") &&
-    t.includes("transportowe") &&
-    t.includes("przewoźnik") &&
-    t.includes("lista") &&
-    t.includes("plomb")
-  );
-}
-
 /**
  * @param {import('pdfjs-dist').PDFPageProxy} page
  * @param {import('tesseract.js').Worker} worker
@@ -217,7 +205,7 @@ async function ocrPdfFile(file, worker, roiCfg) {
     let source = "warstwa PDF";
     const nativeLen = text.trim().length;
     const ocrNeeded =
-      nativeLen === 0 || (p === 1 && !looksLikeProtocolText(text));
+      nativeLen === 0 || (p === 1 && !nativeTextLooksLikeProtocol(text));
     if (ocrNeeded) {
       if (p === 1) {
         const r = await extractPage1WithOcr(page, worker, roiCfg);
@@ -233,7 +221,25 @@ async function ocrPdfFile(file, worker, roiCfg) {
     parts.push(text);
     pageSources.push(source);
   }
-  return { text: parts.join("\n\n"), pageSources, ocrMinConfidence, ocrRegionConfidence };
+  let fullText = parts.join("\n\n");
+  const probe = parseProtocolText(fullText);
+  if (
+    pdf.numPages >= 2 &&
+    probe.plomby.length === 0 &&
+    probe.uwagi_parse.includes("brak_plomb")
+  ) {
+    const page2 = await pdf.getPage(2);
+    const t2 = (await extractTextNative(page2)).trim();
+    if (t2.length === 0) {
+      setStatus(`${file.name}: strona 2/${pdf.numPages} — OCR (brak plomb po str. 1)…`);
+      const r2 = await ocrFullPageText(page2, worker);
+      parts[1] = r2.text;
+      noteOcrConf(r2.confidence);
+      pageSources[1] = "OCR str.2 (pełna strona — brak plomb po str. 1)";
+      fullText = parts.join("\n\n");
+    }
+  }
+  return { text: fullText, pageSources, ocrMinConfidence, ocrRegionConfidence };
 }
 
 function localDateYmd(d = new Date()) {
