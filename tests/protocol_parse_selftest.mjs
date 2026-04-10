@@ -255,6 +255,26 @@ assert.equal(rowsMulti.length, 2);
 assert.equal(rowsMulti[0].numer_zlecenia, "10");
 assert.equal(rowsMulti[1].numer_zlecenia, "11");
 
+// RE_PRZEWOZ_START: OCR spacja w słowie „Przewoźnik" (np. „Przew oznik")
+const ocrSpaceCarrier = parseProtocolText(`
+Zlecenie transportowe nr: 99
+Przew oznik: Spedycja X Sp z oo
+Miejsce dostawy: Y
+Lista odebranych plomb:
+1. 700000000340087
+`);
+assert.ok(ocrSpaceCarrier.przewoznik.includes("Spedycja"), "OCR spacja w Przewoźnik");
+
+// RE_PRZEWOZ_START: bez ogonka „ó" (Przewoznik)
+const asciiCarrier2 = parseProtocolText(`
+Zlecenie transportowe nr: 100
+Przewoznik: Transport ABC
+Miejsce dostawy: Y
+Lista odebranych plomb:
+1. 700000000340087
+`);
+assert.ok(asciiCarrier2.przewoznik.includes("Transport ABC"));
+
 // RE_ZLECENIE: numer z OCR spacją wewnątrz (np. „12 345" → „12345")
 const ocrSpaceNr = parseProtocolText(`
 Zlecenie transportowe nr: 12 345

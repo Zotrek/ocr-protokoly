@@ -234,6 +234,23 @@ export function buildRowsForError(fileName, message) {
 }
 
 /**
+ * Ustawia szerokości kolumn (na podstawie danych) i autofiltr nagłówka.
+ * @param {object} ws  SheetJS worksheet
+ * @param {Record<string, string>[]} rows
+ */
+function applyWorksheetStyle(ws, rows) {
+  ws["!cols"] = EXCEL_HEADER.map((col) => {
+    const maxData = rows.reduce((m, r) => Math.max(m, (r[col] ?? "").length), 0);
+    const wch = Math.max(col.length, Math.min(maxData, 80));
+    return { wch };
+  });
+  if (rows.length > 0) {
+    const lastCol = String.fromCharCode(64 + EXCEL_HEADER.length);
+    ws["!autofilter"] = { ref: `A1:${lastCol}1` };
+  }
+}
+
+/**
  * @param {FileSystemDirectoryHandle | null} dirHandle
  * @param {string} dateYmd YYYY-MM-DD
  * @param {Record<string, string>[]} newRows
@@ -269,6 +286,7 @@ export async function mergeAndBuildWorkbookBlob(dirHandle, dateYmd, newRows) {
   const ws = XLSX.utils.json_to_sheet(merged, {
     header: [...EXCEL_HEADER],
   });
+  applyWorksheetStyle(ws, merged);
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Wynik");
   const out = XLSX.write(wb, { bookType: "xlsx", type: "array" });

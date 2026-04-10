@@ -25,8 +25,11 @@ const RE_ZLECENIE_DIGITS = new RegExp(`^\\d{${ZLECENIE_LEN_MIN},${ZLECENIE_LEN_M
  * Przechwytujemy cyfry + spacje/tabulatory (do 24 znaków), potem czyścimy.
  */
 const RE_ZLECENIE = /Zlecenie\s+transportowe\s+nr\s*:\s*(\d[\d \t]{0,23})/i;
-/** OCR często bez „ó” / „ź” */
-const RE_PRZEWOZ_START = /(?:Przewoznik|Przewoźnik)\s*:\s*/i;
+/**
+ * OCR często bez „ó” / „ź”; tolerancja na spację wewnątrz słowa (np. „Przew oznik”).
+ * Dopasowuje „Przewoznik:”, „Przewoźnik:”, „Przew oznik:” i podobne warianty.
+ */
+const RE_PRZEWOZ_START = /Przew\s?[oó]\s?[zź]ni?k\s*:\s*/i;
 const RE_MIEJSCE_DOSTAWY = /Miejsce\s+dostawy\s*:/i;
 /**
  * Nagłówek listy plomb (parser, `nativeTextHasListaPlomb`, ROI stitch) —

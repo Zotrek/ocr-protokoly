@@ -87,4 +87,4 @@ Pełna lista checkboxów: **§8** w [`OCR_protokoly_skan_spec.md`](OCR_protokoly
 
 ---
 
-*Ostatnia aktualizacja dokumentu: 2026-04-10 — usunięty filtr nazwy pliku, panel logu, progi ROI per-pole w UI (jeden próg ogólny); podsumowanie wyników batcha (chipy + błędy przenoszenia); nazwa pliku w statusie podczas przetwarzania.*
+*Ostatnia aktualizacja dokumentu: 2026-04-10 — uproszczenie UI (brak filtra, logu, ROI per-pole); podsumowanie batcha (chipy); robustność parsera (OCR spacje w numerze zlecenia i „Przewoźnik"); Excel: szerokości kolumn i autofiltr; `tools/run_selftests.sh`.*

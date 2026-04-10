@@ -229,40 +229,43 @@ async function ocrPdfFile(file, worker, roiCfg) {
     if (c == null || !Number.isFinite(c)) return;
     ocrMinConfidence = ocrMinConfidence == null ? c : Math.min(ocrMinConfidence, c);
   }
-  for (let p = 1; p <= pdf.numPages; p++) {
-    const pageCtx = pdf.numPages > 1 ? `str. ${p}/${pdf.numPages}` : "str. 1";
-    ocrStatusCtx = `${file.name} — ${pageCtx}`;
-    setStatus(ocrStatusCtx);
-    const page = await pdf.getPage(p);
-    let text = await extractTextNative(page);
-    let source = "warstwa PDF";
-    const nativeLen = text.trim().length;
-    const ocrNeeded =
-      nativeLen === 0 ||
-      (p === 1 && !nativeTextLooksLikeProtocol(text)) ||
-      (p > 1 && nativeLen > 0 && !nativeTextHasListaPlomb(text));
-    if (ocrNeeded) {
-      if (p === 1) {
-        const r = await extractPage1WithOcr(page, worker, roiCfg);
-        text = r.text;
-        noteOcrConf(r.ocrMinConfidence);
-        if (r.ocrRegionConfidence) ocrRegionConfidence = r.ocrRegionConfidence;
-        if (r.roiOcrRawTexts) roiOcrRawTexts = r.roiOcrRawTexts;
-        source = "OCR str.1 (ROI, ewentualnie pełna strona)";
-      } else {
-        const r = await ocrFullPageText(page, worker);
-        text = r.text;
-        noteOcrConf(r.confidence);
-        source =
-          nativeLen > 0
-            ? `OCR str.${p} (pełna strona; warstwa PDF bez listy plomb)`
-            : `OCR str.${p} (pełna strona)`;
+  try {
+    for (let p = 1; p <= pdf.numPages; p++) {
+      const pageCtx = pdf.numPages > 1 ? `str. ${p}/${pdf.numPages}` : "str. 1";
+      ocrStatusCtx = `${file.name} — ${pageCtx}`;
+      setStatus(ocrStatusCtx);
+      const page = await pdf.getPage(p);
+      let text = await extractTextNative(page);
+      let source = "warstwa PDF";
+      const nativeLen = text.trim().length;
+      const ocrNeeded =
+        nativeLen === 0 ||
+        (p === 1 && !nativeTextLooksLikeProtocol(text)) ||
+        (p > 1 && nativeLen > 0 && !nativeTextHasListaPlomb(text));
+      if (ocrNeeded) {
+        if (p === 1) {
+          const r = await extractPage1WithOcr(page, worker, roiCfg);
+          text = r.text;
+          noteOcrConf(r.ocrMinConfidence);
+          if (r.ocrRegionConfidence) ocrRegionConfidence = r.ocrRegionConfidence;
+          if (r.roiOcrRawTexts) roiOcrRawTexts = r.roiOcrRawTexts;
+          source = "OCR str.1 (ROI, ewentualnie pełna strona)";
+        } else {
+          const r = await ocrFullPageText(page, worker);
+          text = r.text;
+          noteOcrConf(r.confidence);
+          source =
+            nativeLen > 0
+              ? `OCR str.${p} (pełna strona; warstwa PDF bez listy plomb)`
+              : `OCR str.${p} (pełna strona)`;
+        }
       }
+      parts.push(text);
+      pageSources.push(source);
     }
-    parts.push(text);
-    pageSources.push(source);
+  } finally {
+    ocrStatusCtx = "";
   }
-  ocrStatusCtx = "";
   const fullText = parts.join("\n\n");
   return { text: fullText, pageSources, ocrMinConfidence, ocrRegionConfidence, roiOcrRawTexts };
 }
