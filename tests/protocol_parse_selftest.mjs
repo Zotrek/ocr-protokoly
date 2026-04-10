@@ -255,4 +255,25 @@ assert.equal(rowsMulti.length, 2);
 assert.equal(rowsMulti[0].numer_zlecenia, "10");
 assert.equal(rowsMulti[1].numer_zlecenia, "11");
 
+// RE_ZLECENIE: numer z OCR spacją wewnątrz (np. „12 345" → „12345")
+const ocrSpaceNr = parseProtocolText(`
+Zlecenie transportowe nr: 12 345
+Przewoznik: Firma
+Miejsce dostawy: X
+Lista odebranych plomb:
+1. 700000000340087
+`);
+assert.equal(ocrSpaceNr.numer_zlecenia, "12345", "OCR spacja w numerze zlecenia");
+assert.ok(isZlecenieFormatSample(ocrSpaceNr.numer_zlecenia));
+
+// RE_ZLECENIE: numer z wieloma spacjami (np. „1 2 3")
+const ocrSpaceNr2 = parseProtocolText(`
+Zlecenie transportowe nr: 1 2 3
+Przewoznik: Firma
+Miejsce dostawy: X
+Lista odebranych plomb:
+1. 700000000340087
+`);
+assert.equal(ocrSpaceNr2.numer_zlecenia, "123");
+
 console.log("protocol_parse_selftest: OK");

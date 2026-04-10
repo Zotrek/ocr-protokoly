@@ -20,7 +20,11 @@ export const ZLECENIE_LEN_MIN = 1;
 export const ZLECENIE_LEN_MAX = 12;
 const RE_ZLECENIE_DIGITS = new RegExp(`^\\d{${ZLECENIE_LEN_MIN},${ZLECENIE_LEN_MAX}}$`);
 
-const RE_ZLECENIE = /Zlecenie\s+transportowe\s+nr\s*:\s*(\d+)/i;
+/**
+ * Numer zlecenia może być odczytany z OCR ze spacją wewnątrz (np. „12 345").
+ * Przechwytujemy cyfry + spacje/tabulatory (do 24 znaków), potem czyścimy.
+ */
+const RE_ZLECENIE = /Zlecenie\s+transportowe\s+nr\s*:\s*(\d[\d \t]{0,23})/i;
 /** OCR często bez „ó” / „ź” */
 const RE_PRZEWOZ_START = /(?:Przewoznik|Przewoźnik)\s*:\s*/i;
 const RE_MIEJSCE_DOSTAWY = /Miejsce\s+dostawy\s*:/i;
@@ -187,7 +191,7 @@ function extractPlombyAllListas(segmentNormalized) {
 function parseProtocolSegment(normalized) {
   const uwagi = [];
   const z = normalized.match(RE_ZLECENIE);
-  const numer_zlecenia = z ? z[1].trim() : "";
+  const numer_zlecenia = z ? z[1].replace(/\s+/g, "").trim() : "";
 
   let przewoznik = "";
   const pm = RE_PRZEWOZ_START.exec(normalized);
@@ -223,10 +227,11 @@ function parseProtocolSegment(normalized) {
  */
 export function parseProtocolText(raw) {
   const normalized = raw.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  const RE_ZLECENIE_HEADER = /Zlecenie\s+transportowe\s+nr\s*:/i;
   const chunks = normalized
     .split(/(?=Zlecenie\s+transportowe\s+nr\s*:)/gi)
     .map((c) => c.trim())
-    .filter((c) => /Zlecenie\s+transportowe\s+nr\s*:/i.test(c));
+    .filter((c) => RE_ZLECENIE_HEADER.test(c));
 
   if (chunks.length <= 1) {
     const p = parseProtocolSegment(normalized);

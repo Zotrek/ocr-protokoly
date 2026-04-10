@@ -79,6 +79,8 @@ function readConfidenceMinFromUi() {
 let ocrWorker = null;
 let busy = false;
 let batchAborted = false;
+/** Aktualny kontekst OCR (plik + strona) wyświetlany w statusie w trakcie rozpoznawania. */
+let ocrStatusCtx = "";
 
 async function terminateOcrWorker() {
   if (!ocrWorker) return;
@@ -127,7 +129,8 @@ async function ensureOcrWorker() {
   ocrWorker = await Tesseract.createWorker("pol", 1, {
     logger(m) {
       if (m.status === "recognizing text" && typeof m.progress === "number") {
-        setStatus(`OCR strony… ${Math.round(m.progress * 100)}%`);
+        const pct = Math.round(m.progress * 100);
+        setStatus(ocrStatusCtx ? `${ocrStatusCtx} — OCR ${pct}%` : `OCR… ${pct}%`);
       }
     },
   });
@@ -227,7 +230,9 @@ async function ocrPdfFile(file, worker, roiCfg) {
     ocrMinConfidence = ocrMinConfidence == null ? c : Math.min(ocrMinConfidence, c);
   }
   for (let p = 1; p <= pdf.numPages; p++) {
-    setStatus(`${file.name}: strona ${p}/${pdf.numPages}`);
+    const pageCtx = pdf.numPages > 1 ? `str. ${p}/${pdf.numPages}` : "str. 1";
+    ocrStatusCtx = `${file.name} — ${pageCtx}`;
+    setStatus(ocrStatusCtx);
     const page = await pdf.getPage(p);
     let text = await extractTextNative(page);
     let source = "warstwa PDF";
@@ -257,6 +262,7 @@ async function ocrPdfFile(file, worker, roiCfg) {
     parts.push(text);
     pageSources.push(source);
   }
+  ocrStatusCtx = "";
   const fullText = parts.join("\n\n");
   return { text: fullText, pageSources, ocrMinConfidence, ocrRegionConfidence, roiOcrRawTexts };
 }
