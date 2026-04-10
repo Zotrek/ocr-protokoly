@@ -3,6 +3,7 @@
 Odczyt skanów protokołów (OCR) w przeglądarce — osobny projekt względem `arkusz-mapa`.
 
 - **Specyfikacja:** [`OCR_protokoly_skan_spec.md`](OCR_protokoly_skan_spec.md)
+- **Co zrobione / TODO (POC):** [`STATUS_IMPLEMENTACJI.md`](STATUS_IMPLEMENTACJI.md)
 - **Hosting (krok po kroku):** [`HOSTING.md`](HOSTING.md)
 - **POC:** [`index.html`](index.html) + [`app.mjs`](app.mjs), [`protocol_parse.mjs`](protocol_parse.mjs), [`roi_ocr.mjs`](roi_ocr.mjs), [`export_xlsx.mjs`](export_xlsx.mjs), [`pdf_errors.mjs`](pdf_errors.mjs) — Excel dzienny, `done` / `problematyczne` (Chrome + folder z zapisem)
 - **Dane testowe (layout Word → PDF):** folder [`dane testowe/`](dane%20testowe/)

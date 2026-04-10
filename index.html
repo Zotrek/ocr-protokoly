@@ -197,6 +197,26 @@
         user-select: none;
       }
 
+      .ocr-threshold-block {
+        display: flex;
+        flex-direction: column;
+        gap: 0.2rem;
+        flex: 1 1 14rem;
+        min-width: 0;
+      }
+
+      .ocr-threshold-block > label[for="inpOcrMin"] {
+        cursor: help;
+      }
+
+      .field-hint {
+        margin: 0;
+        font-size: 0.75rem;
+        line-height: 1.4;
+        color: var(--text-muted);
+        max-width: 38rem;
+      }
+
       .options-row input[type="checkbox"] {
         width: 1rem;
         height: 1rem;
@@ -351,10 +371,28 @@
             Szukaj PDF w podfolderach (pomijane: <code style="font-family: var(--mono); font-size: 0.8em">done</code>,
             <code style="font-family: var(--mono); font-size: 0.8em">problematyczne</code>)
           </label>
-          <label title="Minimalna średnia pewność Tesseract (0–100); poniżej → problematyczne przy OCR">
-            Próg OCR
-            <input type="number" id="inpOcrMin" min="0" max="100" step="1" value="55" />
-          </label>
+          <div class="ocr-threshold-block">
+            <label
+              for="inpOcrMin"
+              title="Tesseract zwraca pewność rozpoznania w skali 0–100 (wyżej = pewniejszy odczyt). Dla każdego pliku bierzemy najniższą wartość spośród fragmentów, na których wykonano OCR. Jeśli jest niższa niż ustawiony próg, PDF trafia do folderu „problematyczne” — także wtedy, gdy tekst nadal daje się sparsować. Gdy dokument ma warstwę tekstową i nie uruchamiamy OCR, próg nie jest stosowany."
+            >
+              Próg OCR
+            </label>
+            <input
+              type="number"
+              id="inpOcrMin"
+              min="0"
+              max="100"
+              step="1"
+              value="55"
+              aria-describedby="hintOcrMin"
+            />
+            <p id="hintOcrMin" class="field-hint" role="note">
+              Skala 0–100 (pewność Tesseract): dla pliku używana jest <strong>najniższa</strong> wartość z przebiegów OCR.
+              Poniżej progu → folder <code style="font-family: var(--mono); font-size: 0.9em">problematyczne</code>, nawet przy poprawnym tekście.
+              Przy PDF z samą warstwą tekstową (bez OCR) próg <strong>nie obowiązuje</strong>. Dłuższy opis: najedź kursorem na etykietę „Próg OCR”.
+            </p>
+          </div>
         </div>
         <p class="hint">
           <strong>Chrome:</strong> wybór folderu z uprawnieniem do zapisu — powstanie <code style="font-family: var(--mono); font-size: 0.85em">wynik_YYYY-MM-DD.xlsx</code>, PDF trafią do
