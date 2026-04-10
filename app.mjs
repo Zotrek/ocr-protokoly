@@ -25,13 +25,11 @@ pdfjsLib.GlobalWorkerOptions.workerSrc =
 const el = {
   status: document.getElementById("status"),
   prog: document.getElementById("prog"),
+  results: document.getElementById("results"),
   btnDir: document.getElementById("btnDir"),
   btnStop: document.getElementById("btnStop"),
   chkRecurse: document.getElementById("chkRecurse"),
   inpOcrMin: document.getElementById("inpOcrMin"),
-  inpOcrRoiZlecenie: document.getElementById("inpOcrRoiZlecenie"),
-  inpOcrRoiLista: document.getElementById("inpOcrRoiLista"),
-  inpOcrRoiPrzewoznik: document.getElementById("inpOcrRoiPrzewoznik"),
   inputDir: document.getElementById("inputDir"),
 };
 
@@ -44,16 +42,10 @@ function hasFileSystemAccessFolderPicker() {
 function setBatchFormDisabled(disabled) {
   if (el.chkRecurse) el.chkRecurse.disabled = disabled;
   if (el.inpOcrMin) el.inpOcrMin.disabled = disabled;
-  if (el.inpOcrRoiZlecenie) el.inpOcrRoiZlecenie.disabled = disabled;
-  if (el.inpOcrRoiLista) el.inpOcrRoiLista.disabled = disabled;
-  if (el.inpOcrRoiPrzewoznik) el.inpOcrRoiPrzewoznik.disabled = disabled;
 }
 
 const STATUS_IDLE = "Oczekuję na start.";
 const LS_OCR_CONF_MIN = "ocr_proto_conf_min";
-const LS_OCR_CONF_ROI_ZLECENIE = "ocr_proto_conf_roi_numer_zlecenia";
-const LS_OCR_CONF_ROI_LISTA = "ocr_proto_conf_roi_lista_plomb";
-const LS_OCR_CONF_ROI_PRZEWOZNIK = "ocr_proto_conf_roi_przewoznik";
 
 (function initOcrThresholdUi() {
   const inp = el.inpOcrMin;
@@ -76,64 +68,12 @@ const LS_OCR_CONF_ROI_PRZEWOZNIK = "ocr_proto_conf_roi_przewoznik";
   });
 })();
 
-/** @param {HTMLInputElement | null} inp @param {string} lsKey */
-function initOptionalRoiThreshold(inp, lsKey) {
-  if (!inp) return;
-  try {
-    const s = localStorage.getItem(lsKey);
-    if (s != null && s.trim() !== "") {
-      const n = Number(s);
-      if (Number.isFinite(n) && n >= 0 && n <= 100) inp.value = String(Math.round(n));
-    }
-  } catch {
-    /* ignore */
-  }
-  inp.addEventListener("change", () => {
-    try {
-      const v = inp.value.trim();
-      if (v === "") localStorage.removeItem(lsKey);
-      else localStorage.setItem(lsKey, v);
-    } catch {
-      /* ignore */
-    }
-  });
-}
-
-initOptionalRoiThreshold(el.inpOcrRoiZlecenie, LS_OCR_CONF_ROI_ZLECENIE);
-initOptionalRoiThreshold(el.inpOcrRoiLista, LS_OCR_CONF_ROI_LISTA);
-initOptionalRoiThreshold(el.inpOcrRoiPrzewoznik, LS_OCR_CONF_ROI_PRZEWOZNIK);
-
 function readConfidenceMinFromUi() {
   const n = Number(el.inpOcrMin?.value);
   if (Number.isFinite(n) && n >= 0 && n <= 100) return Math.round(n);
   return OCR_CONFIDENCE_MIN;
 }
 
-/**
- * Opcjonalne progi per ROI (puste pole = jak ogólny próg).
- * @returns {{ numer_zlecenia?: number, lista_plomb?: number, przewoznik?: number } | undefined}
- */
-function readConfidenceMinRoiFromUi() {
-  /** @type {{ numer_zlecenia?: number, lista_plomb?: number, przewoznik?: number }} */
-  const out = {};
-  const pairs = [
-    ["numer_zlecenia", el.inpOcrRoiZlecenie],
-    ["lista_plomb", el.inpOcrRoiLista],
-    ["przewoznik", el.inpOcrRoiPrzewoznik],
-  ];
-  for (const [key, inp] of pairs) {
-    if (!inp) continue;
-    const raw = inp.value.trim();
-    if (raw === "") continue;
-    const n = Number(raw);
-    if (Number.isFinite(n) && n >= 0 && n <= 100) {
-      if (key === "numer_zlecenia") out.numer_zlecenia = Math.round(n);
-      else if (key === "lista_plomb") out.lista_plomb = Math.round(n);
-      else if (key === "przewoznik") out.przewoznik = Math.round(n);
-    }
-  }
-  return Object.keys(out).length ? out : undefined;
-}
 
 /** @type {import('tesseract.js').Worker | null} */
 let ocrWorker = null;
@@ -158,8 +98,27 @@ function setStatus(text) {
   el.status.textContent = text;
 }
 
-function appendLog(_chunk) {
-  /* log panel removed */
+/**
+ * Wyświetla podsumowanie wyników batcha w #results.
+ * @param {{ done: number, prob: number, err: number, moveErr: number, total: number, aborted: boolean }} counts
+ */
+function showResults(counts) {
+  const r = el.results;
+  if (!r) return;
+  const chip = (cls, label, n, hint = "") =>
+    `<span class="res-chip ${cls}" title="${hint || label + ": " + n}">${label} <strong>${n}</strong></span>`;
+  r.innerHTML =
+    chip("tot", "Łącznie", counts.total) +
+    chip("ok", "Done", counts.done) +
+    chip("warn", "Problematyczne", counts.prob) +
+    (counts.err ? chip("err", "Błędy OCR", counts.err, "Pliki które nie mogły być przetworzone") : "") +
+    (counts.moveErr ? chip("err", "Błędy przenoszenia", counts.moveErr, "Nie udało się przenieść PDF do done / problematyczne") : "") +
+    (counts.aborted ? `<span class="res-chip err">Przerwano</span>` : "");
+  r.classList.add("visible");
+}
+
+function hideResults() {
+  if (el.results) el.results.classList.remove("visible");
 }
 
 async function ensureOcrWorker() {
@@ -398,24 +357,8 @@ async function runQueue(jobs, dirHandle) {
   el.prog.value = 0;
   const batchDate = localDateYmd();
   const confidenceMin = readConfidenceMinFromUi();
-  const confidenceMinRoi = readConfidenceMinRoiFromUi();
   try {
     localStorage.setItem(LS_OCR_CONF_MIN, String(confidenceMin));
-    if (el.inpOcrRoiZlecenie) {
-      const v = el.inpOcrRoiZlecenie.value.trim();
-      if (v === "") localStorage.removeItem(LS_OCR_CONF_ROI_ZLECENIE);
-      else localStorage.setItem(LS_OCR_CONF_ROI_ZLECENIE, v);
-    }
-    if (el.inpOcrRoiLista) {
-      const v = el.inpOcrRoiLista.value.trim();
-      if (v === "") localStorage.removeItem(LS_OCR_CONF_ROI_LISTA);
-      else localStorage.setItem(LS_OCR_CONF_ROI_LISTA, v);
-    }
-    if (el.inpOcrRoiPrzewoznik) {
-      const v = el.inpOcrRoiPrzewoznik.value.trim();
-      if (v === "") localStorage.removeItem(LS_OCR_CONF_ROI_PRZEWOZNIK);
-      else localStorage.setItem(LS_OCR_CONF_ROI_PRZEWOZNIK, v);
-    }
   } catch {
     /* ignore */
   }
@@ -447,52 +390,31 @@ async function runQueue(jobs, dirHandle) {
   const batchRows = [];
   /** @type {{ handle: FileSystemFileHandle, dest: string, targetName: string }[]} */
   const pendingMoves = [];
+  const counts = { done: 0, prob: 0, err: 0, moveErr: 0, total: 0, aborted: false };
+
+  hideResults();
 
   try {
     const worker = await ensureOcrWorker();
     for (let i = 0; i < jobs.length; i++) {
-      if (batchAborted) {
-        appendLog("\n── Przerwano przez użytkownika ──\n");
-        break;
-      }
+      if (batchAborted) break;
       const job = jobs[i];
+      setStatus(`[${i + 1}/${jobs.length}] ${job.excelName}`);
       try {
         const file = await job.getFile();
-        const { text: fullText, pageSources, ocrMinConfidence, ocrRegionConfidence, roiOcrRawTexts } =
+        const { text: fullText, ocrMinConfidence, ocrRegionConfidence, roiOcrRawTexts } =
           await ocrPdfFile(file, worker, roiCfg);
-        appendLog(`═══ ${job.excelName} ═══\n`);
-        pageSources.forEach((src, idx) => {
-          appendLog(`  strona ${idx + 1}: ${src}\n`);
-        });
-        if (ocrMinConfidence != null) {
-          let logConf = `  OCR min. pewność (Tesseract): ${Math.round(ocrMinConfidence)} (próg ogólny ${confidenceMin})`;
-          if (ocrRegionConfidence) {
-            const z = confidenceMinRoi?.numer_zlecenia ?? confidenceMin;
-            const l = confidenceMinRoi?.lista_plomb ?? confidenceMin;
-            const pr = confidenceMinRoi?.przewoznik ?? confidenceMin;
-            logConf += `; progi ROI: zlecenie≥${z}, lista≥${l}, przewoźnik≥${pr}`;
-          }
-          appendLog(`${logConf}\n`);
-        }
         const parsed = parseProtocolText(fullText);
         const quality = protocolReadoutQuality(parsed, {
           ocrMinConfidence: ocrMinConfidence ?? undefined,
           ocrRegionConfidence: ocrRegionConfidence ?? undefined,
           roiOcrRawTexts: roiOcrRawTexts ?? undefined,
           confidenceMin,
-          confidenceMinRoi,
         });
-        appendLog(
-          `── Pola (parser) ──\n` +
-            `zlecenie: ${parsed.numer_zlecenia || "—"}\n` +
-            `przewoźnik: ${parsed.przewoznik ? parsed.przewoznik.slice(0, 200) + (parsed.przewoznik.length > 200 ? "…" : "") : "—"}\n` +
-            `plomby (${parsed.plomby.length}): ${parsed.plomby.join(", ") || "—"}\n` +
-            `kwalifikacja: ${quality.destSubfolder} (${quality.uwagi_excel})\n` +
-            (parsed.uwagi_parse.length ? `uwagi parsera: ${parsed.uwagi_parse.join(", ")}\n` : "")
-        );
-        const preview = fullText.slice(0, 2500);
-        appendLog(`── Pełny tekst (fragment) ──\n${preview}${fullText.length > 2500 ? "\n… [ucięto]\n" : "\n"}\n`);
         batchRows.push(...buildExcelRows(job.excelName, parsed, quality));
+        if (quality.destSubfolder === "done") counts.done++;
+        else counts.prob++;
+        counts.total++;
         if (job.handle && dirHandle) {
           pendingMoves.push({
             handle: job.handle,
@@ -502,8 +424,9 @@ async function runQueue(jobs, dirHandle) {
         }
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        appendLog(`═══ ${job.excelName} ═══\nBŁĄD: ${msg}\n\n`);
         batchRows.push(...buildRowsForError(job.excelName, `blad_przetwarzania: ${msg}`));
+        counts.err++;
+        counts.total++;
         if (job.handle && dirHandle) {
           pendingMoves.push({
             handle: job.handle,
@@ -513,8 +436,9 @@ async function runQueue(jobs, dirHandle) {
         }
       }
       el.prog.value = i + 1;
-      setStatus(`Przetworzono ${i + 1} / ${jobs.length}`);
     }
+
+    counts.aborted = batchAborted;
 
     const blob = await mergeAndBuildWorkbookBlob(dirHandle, batchDate, batchRows);
     if (dirHandle) {
@@ -523,14 +447,13 @@ async function runQueue(jobs, dirHandle) {
         try {
           const sub = await dirHandle.getDirectoryHandle(m.dest, { create: true });
           await m.handle.move(sub, m.targetName);
-        } catch (e) {
-          const em = e instanceof Error ? e.message : String(e);
-          appendLog(`Przeniesienie ${m.targetName} → ${m.dest}: ${em}\n`);
+        } catch {
+          counts.moveErr++;
         }
       }
       setStatus(
         batchAborted
-          ? `Przerwano. Zapisano częściowy wynik_${batchDate}.xlsx (jeśli były przetworzone pliki).`
+          ? `Przerwano. Zapisano częściowy wynik_${batchDate}.xlsx.`
           : `Gotowe. Zapisano wynik_${batchDate}.xlsx; PDF przeniesione do done / problematyczne.`
       );
     } else {
@@ -541,11 +464,11 @@ async function runQueue(jobs, dirHandle) {
           : `Gotowe. Pobrano wynik_${batchDate}.xlsx (brak przenoszenia PDF w tym trybie).`
       );
     }
+    showResults(counts);
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     const excelReadFail = /wczytać istniejącego pliku|nie zostały przeniesione/i.test(msg);
     setStatus(excelReadFail ? msg : `Błąd zapisu Excel: ${msg}`);
-    appendLog(`\n── Błąd wsadowy ──\n${msg}\n`);
   } finally {
     busy = false;
     el.btnDir.disabled = false;

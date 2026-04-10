@@ -203,33 +203,6 @@
         cursor: help;
       }
 
-      .ocr-roi-row {
-        display: flex;
-        flex-wrap: wrap;
-        align-items: flex-end;
-        gap: 0.5rem 0.85rem;
-        margin-top: 0.65rem;
-        padding-top: 0.65rem;
-        border-top: 1px solid var(--border);
-        font-size: 0.82rem;
-        color: var(--text-muted);
-      }
-
-      .ocr-roi-row > span.roi-row-title {
-        flex: 1 0 100%;
-        font-size: 0.78rem;
-        text-transform: uppercase;
-        letter-spacing: 0.04em;
-        color: var(--text-muted);
-      }
-
-      .ocr-roi-row label {
-        display: inline-flex;
-        flex-direction: column;
-        gap: 0.2rem;
-        cursor: help;
-        font-size: 0.78rem;
-      }
 
       .options-row input[type="checkbox"] {
         width: 1rem;
@@ -309,6 +282,37 @@
         background: var(--bg-elevated);
       }
 
+      #results {
+        display: none;
+        flex-wrap: wrap;
+        gap: 0.5rem 1.1rem;
+        padding: 0.6rem 0.85rem;
+        background: var(--bg-elevated);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        font-size: 0.82rem;
+      }
+
+      #results.visible {
+        display: flex;
+      }
+
+      .res-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        padding: 0.25rem 0.6rem;
+        border-radius: 999px;
+        font-size: 0.8rem;
+        font-weight: 600;
+        white-space: nowrap;
+      }
+
+      .res-chip.ok   { background: #14532d22; color: #4ade80; border: 1px solid #4ade8044; }
+      .res-chip.warn { background: #78350f22; color: #fbbf24; border: 1px solid #fbbf2444; }
+      .res-chip.err  { background: #7f1d1d22; color: #f87171; border: 1px solid #f8717144; }
+      .res-chip.tot  { background: var(--bg); color: var(--text-muted); border: 1px solid var(--border); }
+
     </style>
   </head>
   <body>
@@ -350,28 +354,12 @@
             />
           </div>
         </div>
-        <div class="ocr-roi-row" role="group" aria-label="Opcjonalne progi pewności OCR dla regionów strony 1">
-          <span class="roi-row-title">Progi ROI str. 1 (opcjonalnie)</span>
-          <label
-            title="Minimalna pewność Tesseract dla wycinka z numerem zlecenia. Puste = ten sam próg co „Próg OCR”."
-          >
-            Zlecenie
-            <input type="number" id="inpOcrRoiZlecenie" min="0" max="100" step="1" placeholder="—" inputmode="numeric" />
-          </label>
-          <label title="Dla wycinka z listą plomb. Puste = próg ogólny.">
-            Lista plomb
-            <input type="number" id="inpOcrRoiLista" min="0" max="100" step="1" placeholder="—" inputmode="numeric" />
-          </label>
-          <label title="Dla wycinka z przewoźnikiem. Puste = próg ogólny.">
-            Przewoźnik
-            <input type="number" id="inpOcrRoiPrzewoznik" min="0" max="100" step="1" placeholder="—" inputmode="numeric" />
-          </label>
-        </div>
       </section>
 
       <section class="panel status-row">
         <div id="status" aria-live="polite">Oczekuję na start.</div>
         <progress id="prog" max="100" value="0"></progress>
+        <div id="results" role="status" aria-live="polite" aria-label="Podsumowanie batcha"></div>
         <p class="kbd-hint">Podczas obróbki: <kbd>Esc</kbd> — przerwij batch (jak przycisk „Przerwij”).</p>
       </section>
 
