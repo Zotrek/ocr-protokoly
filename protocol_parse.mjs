@@ -58,7 +58,7 @@ function plombyFromListLine(line) {
       break;
     }
     const digits = buf.replace(/\s+/g, "");
-    if (/^\d{12,18}$/.test(digits) && !seen.has(digits)) {
+    if (RE_PLOMBA_RAW_DIGITS.test(digits) && !seen.has(digits)) {
       seen.add(digits);
       out.push(digits);
     }
@@ -69,6 +69,15 @@ function plombyFromListLine(line) {
 
 /** Średnia pewność Tesseract (0–100); poniżej → problematyczne (spec §4). */
 export const OCR_CONFIDENCE_MIN = 55;
+
+/** Docelowy format numeru plomby w Excelu (Word / arkusz-mapa). */
+export const PLOMBA_LEN_EXCEL = 15;
+/** Zakres długości surowego numeru z listy (OCR) przed walidacją docelową. */
+export const PLOMBA_RAW_LEN_MIN = 12;
+export const PLOMBA_RAW_LEN_MAX = 18;
+
+const RE_PLOMBA_RAW_DIGITS = new RegExp(`^\\d{${PLOMBA_RAW_LEN_MIN},${PLOMBA_RAW_LEN_MAX}}$`);
+const RE_PLOMBA_EXCEL_DIGITS = new RegExp(`^\\d{${PLOMBA_LEN_EXCEL}}$`);
 
 /**
  * Czy warstwa tekstowa PDF wygląda na pełny protokół (unikamy zbędnego OCR str. 1).
@@ -216,7 +225,7 @@ export function parseProtocolText(raw) {
  * @returns {boolean}
  */
 export function isPlombaFormatSample(numer) {
-  return /^\d{15}$/.test(numer);
+  return RE_PLOMBA_EXCEL_DIGITS.test(numer);
 }
 
 /**

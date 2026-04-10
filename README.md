@@ -9,6 +9,12 @@ Odczyt skanów protokołów (OCR) w przeglądarce — osobny projekt względem `
 - **Dane testowe (layout Word → PDF):** folder [`dane testowe/`](dane%20testowe/)
 - **Kalibracja ROI (str. 1, `pdftotext -tsv`):** uruchom `python3 tools/calibrate_layout.py` → plik [`calibration/roi_hints.json`](calibration/roi_hints.json)
 
-Uruchomienie lokalne: z tego katalogu `python3 -m http.server 8765`, potem w przeglądarce `http://127.0.0.1:8765` (Chrome / Edge — pełny tryb z folderem; Firefox — tryb z pobraniem Excela). Opcjonalnie **filtr nazwy** pliku PDF w UI.
+Uruchomienie lokalne (bez `file://` — potrzebny **http://127.0.0.1** lub HTTPS):
+
+- Linux/macOS: [`tools/serve_local.sh`](tools/serve_local.sh) — `chmod +x tools/serve_local.sh` (raz), potem `./tools/serve_local.sh` (opcjonalnie port: `./tools/serve_local.sh 8766`).
+- Windows: [`tools/start_local.bat`](tools/start_local.bat) (Python w PATH).
+- Ręcznie: z katalogu projektu `python3 -m http.server 8765`, potem w przeglądarce `http://127.0.0.1:8765`.
+
+Opcjonalnie **filtr nazwy** pliku PDF w UI.
 
 Testy bez PDF: `node tests/protocol_parse_selftest.mjs`, `node tests/pdf_errors_selftest.mjs`, `node tests/excel_export_selftest.mjs`

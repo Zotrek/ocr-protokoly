@@ -2,14 +2,25 @@
  * Daily workbook merge/write (spec §3.3) + row model.
  */
 
-import { isPlombaFormatSample } from "./protocol_parse.mjs";
+import {
+  isPlombaFormatSample,
+  PLOMBA_LEN_EXCEL,
+  PLOMBA_RAW_LEN_MIN,
+  PLOMBA_RAW_LEN_MAX,
+} from "./protocol_parse.mjs";
+
+const RE_PLOMBA_RAW_NOT_EXCEL = new RegExp(
+  `^\\d{${PLOMBA_RAW_LEN_MIN},${PLOMBA_RAW_LEN_MAX}}$`
+);
 
 /**
- * Numery z listy (12–18 cyfr po parsowaniu), które nie są docelowym 15-cyfrowym formatem Excel.
+ * Numery z listy (raw min–max cyfr), które nie są docelowym N-cyfrowym formatem Excel.
  * @param {string[]} plomby
  */
 export function plombyBezFormatu15(plomby) {
-  return plomby.filter((p) => typeof p === "string" && /^\d{12,18}$/.test(p) && !isPlombaFormatSample(p));
+  return plomby.filter(
+    (p) => typeof p === "string" && RE_PLOMBA_RAW_NOT_EXCEL.test(p) && !isPlombaFormatSample(p)
+  );
 }
 
 /** @typedef {import('./protocol_parse.mjs').ProtocolFields} ProtocolFields */
@@ -95,10 +106,10 @@ export function excelUwagiForSealRow(quality) {
   const hasFormat = issues.includes("plomba_format");
   const nonPlomb = issues.filter((i) => i !== "plomba_format" && i !== "brak_plomb");
   if (issues.length === 1 && issues[0] === "plomba_format") {
-    return "ok — w dokumencie odrzucono część numerów (wymagane 15 cyfr)";
+    return `ok — w dokumencie odrzucono część numerów (wymagane ${PLOMBA_LEN_EXCEL} cyfr)`;
   }
   const parts = [...nonPlomb];
-  if (hasFormat) parts.push("część numerów plomb pominięta (format 15 cyfr)");
+  if (hasFormat) parts.push(`część numerów plomb pominięta (format ${PLOMBA_LEN_EXCEL} cyfr)`);
   return parts.length ? parts.join("; ") : quality.uwagi_excel;
 }
 
@@ -114,7 +125,7 @@ export function buildExcelRows(fileName, parsed, quality) {
   const rows = [];
 
   const uwBad = (raw) =>
-    `numer plomby odczytany (${raw}) — wymagane dokładnie 15 cyfr; ${uwRow}`;
+    `numer plomby odczytany (${raw}) — wymagane dokładnie ${PLOMBA_LEN_EXCEL} cyfr; ${uwRow}`;
 
   if (parsed.segments?.length) {
     let anyRow = false;

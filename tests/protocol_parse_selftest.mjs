@@ -11,6 +11,9 @@ import {
   nativeTextLooksLikeProtocol,
   nativeTextHasListaPlomb,
   OCR_CONFIDENCE_MIN,
+  PLOMBA_LEN_EXCEL,
+  PLOMBA_RAW_LEN_MIN,
+  PLOMBA_RAW_LEN_MAX,
 } from "../protocol_parse.mjs";
 import { normalizeExcelRow, buildExcelRows } from "../export_xlsx.mjs";
 
@@ -72,6 +75,9 @@ const qRoiOk = protocolReadoutQuality(p, {
 assert.ok(qRoiOk.ok);
 
 assert.equal(OCR_CONFIDENCE_MIN, 55);
+assert.equal(PLOMBA_LEN_EXCEL, 15);
+assert.equal(PLOMBA_RAW_LEN_MIN, 12);
+assert.equal(PLOMBA_RAW_LEN_MAX, 18);
 
 const badPlomb = parseProtocolText(
   SYNTH.replace("700000000340022", "70000000034002")

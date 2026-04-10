@@ -52,7 +52,7 @@ Krótki przegląd **co działa w POC** i **co zostaje do zrobienia** (zwłaszcza
 - [x] **Przykładowe skany** w `dane testowe/` (m.in. wąska strona ~578 pt, wielostronicowe bez tekstu) — pod kątem ROI i wydajności.
 - [ ] **Próbki skanów bitowych** (kontrast, skos, zagięcia, dopiski odręczne) — dalsze edge case’y.
 - [ ] **Dopasowanie ROI** do skanów (marginesy, ewentualnie deskew / kontrast przed OCR); pierwsza iteracja: `regions_norm` / `regions_norm_narrow` + próg szerokości w pt.
-- [ ] **Ostateczna długość i regex** `numer_zlecenia` (obecnie dowolna liczba cyfr z etykiety) i **`numer_plomby`** (POC: 15 cyfr jak w Word — do potwierdzenia).
+- [ ] **Ostateczna długość i regex** `numer_zlecenia` (obecnie dowolna liczba cyfr z etykiety) — do potwierdzenia; **`numer_plomby`:** stałe `PLOMBA_LEN_EXCEL` / `PLOMBA_RAW_LEN_*` w [`protocol_parse.mjs`](protocol_parse.mjs) (łatwa zmiana progu).
 - [ ] **Progi confidence per pole** (osobno ROI zlecenie / lista plomb / przewoźnik vs średnia z całego bloku).
 - [ ] **Dopiski odręczne** w polach — heurystyka lub flaga z silnika (§4 spec) → na razie **nie** zaimplementowane.
 
@@ -62,7 +62,7 @@ Krótki przegląd **co działa w POC** i **co zostaje do zrobienia** (zwłaszcza
 
 ### Produkt / techniczne
 - [x] **Filtr nazwy pliku** (zawiera) — poza domyślnym `*.pdf` w katalogu.
-- [ ] **Paczka offline** + ewentualnie `.bat` + lokalny serwer (opis w §6 spec — nie zautomatyzowane w repo).
+- [x] **Lokalny serwer offline (minimalnie):** [`tools/serve_local.sh`](tools/serve_local.sh), [`tools/start_local.bat`](tools/start_local.bat) + [`README.md`](README.md) / [`HOSTING.md`](HOSTING.md) (pełna paczka ZIP nadal ręczna).
 - [ ] **CSP / SRI** pod konkretny hosting (jeśli polityka bezpieczeństwa wymaga).
 - [x] **Terminacja workera OCR** przy `pagehide` (oszczędność zasobów).
 
@@ -86,4 +86,4 @@ Pełna lista checkboxów: **§8** w [`OCR_protokoly_skan_spec.md`](OCR_protokoly
 
 ---
 
-*Ostatnia aktualizacja dokumentu: 2026-04-10 — m.in. OCR wszystkich stron, `segments`, wiersze Excel dla plomb poza 15 cyframi, preprocess obrazu, filtr nazwy pliku.*
+*Ostatnia aktualizacja dokumentu: 2026-04-10 — m.in. stałe długości plomb, skrypty lokalnego serwera, OCR str. 2+ bez listy w warstwie PDF.*

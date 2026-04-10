@@ -48,6 +48,8 @@ Z katalogu `OCR_protokoly`:
 python3 -m http.server 8765
 ```
 
+Skrypt z katalogu projektu: `./tools/serve_local.sh` (Linux/macOS) lub `tools\start_local.bat` (Windows) — to samo co powyżej.
+
 W przeglądarce: `http://127.0.0.1:8765` — **nie** otwieraj `index.html` przez `file://`. **Firefox:** ta sama strona; przy braku File System Access aplikacja sama przełączy się na pobieranie Excela (bez zapisu do wybranego folderu).
 
 ---
