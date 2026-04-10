@@ -11,7 +11,7 @@ import {
   nativeTextLooksLikeProtocol,
   OCR_CONFIDENCE_MIN,
 } from "../protocol_parse.mjs";
-import { normalizeExcelRow } from "../export_xlsx.mjs";
+import { normalizeExcelRow, buildExcelRows } from "../export_xlsx.mjs";
 
 const LONG_NATIVE = `${"x".repeat(130)}\nZlecenie transportowe nr: 1\nPrzewoznik: ABC\nMiejsce dostawy: Y\nLista odebranych plomb:\n1. 700000000340087\n`;
 assert.ok(nativeTextLooksLikeProtocol(LONG_NATIVE));
@@ -128,5 +128,39 @@ Lista odebranych plomby:
 1. 700000000340087
 `);
 assert.deepEqual(listaPlomby.plomby, ["700000000340087"]);
+
+const twoCol = parseProtocolText(`
+Zlecenie transportowe nr: 8
+Przewoźnik: Sped
+Miejsce dostawy: M
+Lista odebranych plomb:
+1. 700000000340087    2. 700000000340022
+`);
+assert.deepEqual(twoCol.plomby, ["700000000340087", "700000000340022"]);
+assert.ok(!twoCol.segments);
+
+const multi = parseProtocolText(`
+Zlecenie transportowe nr: 10
+Przewoźnik: Firma A
+Miejsce dostawy: X
+Lista odebranych plomb:
+1. 700000000340087
+
+Zlecenie transportowe nr: 11
+Przewoźnik: Firma B
+Miejsce dostawy: Y
+Lista odebranych plomb:
+1. 700000000340022
+`);
+assert.ok(multi.segments && multi.segments.length === 2);
+assert.equal(multi.segments[0].numer_zlecenia, "10");
+assert.equal(multi.segments[1].numer_zlecenia, "11");
+assert.deepEqual(multi.plomby, ["700000000340087", "700000000340022"]);
+const qMulti = protocolReadoutQuality(multi);
+assert.ok(qMulti.ok);
+const rowsMulti = buildExcelRows("x.pdf", multi, qMulti);
+assert.equal(rowsMulti.length, 2);
+assert.equal(rowsMulti[0].numer_zlecenia, "10");
+assert.equal(rowsMulti[1].numer_zlecenia, "11");
 
 console.log("protocol_parse_selftest: OK");

@@ -4,6 +4,14 @@
 
 import { isPlombaFormatSample } from "./protocol_parse.mjs";
 
+/**
+ * Numery z listy (12–18 cyfr po parsowaniu), które nie są docelowym 15-cyfrowym formatem Excel.
+ * @param {string[]} plomby
+ */
+export function plombyBezFormatu15(plomby) {
+  return plomby.filter((p) => typeof p === "string" && /^\d{12,18}$/.test(p) && !isPlombaFormatSample(p));
+}
+
 /** @typedef {import('./protocol_parse.mjs').ProtocolFields} ProtocolFields */
 
 let xlsxModulePromise = null;
@@ -101,19 +109,52 @@ export function excelUwagiForSealRow(quality) {
  * @returns {Record<string, string>[]}
  */
 export function buildExcelRows(fileName, parsed, quality) {
-  const pl = parsed.plomby.filter((p) => isPlombaFormatSample(p));
+  const uwRow = excelUwagiForSealRow(quality);
+  /** @type {Record<string, string>[]} */
   const rows = [];
-  if (pl.length === 0) {
-    rows.push({
-      nazwa_pliku: fileName,
-      numer_zlecenia: parsed.numer_zlecenia,
-      przewoznik: parsed.przewoznik,
-      numer_plomby: "",
-      Uwagi_odczyt: quality.uwagi_excel,
-    });
+
+  const uwBad = (raw) =>
+    `numer plomby odczytany (${raw}) — wymagane dokładnie 15 cyfr; ${uwRow}`;
+
+  if (parsed.segments?.length) {
+    let anyRow = false;
+    for (const seg of parsed.segments) {
+      const pl = seg.plomby.filter((p) => isPlombaFormatSample(p));
+      for (const numer_plomby of pl) {
+        rows.push({
+          nazwa_pliku: fileName,
+          numer_zlecenia: seg.numer_zlecenia,
+          przewoznik: seg.przewoznik,
+          numer_plomby,
+          Uwagi_odczyt: uwRow,
+        });
+        anyRow = true;
+      }
+      for (const raw of plombyBezFormatu15(seg.plomby)) {
+        rows.push({
+          nazwa_pliku: fileName,
+          numer_zlecenia: seg.numer_zlecenia,
+          przewoznik: seg.przewoznik,
+          numer_plomby: raw,
+          Uwagi_odczyt: uwBad(raw),
+        });
+        anyRow = true;
+      }
+    }
+    if (!anyRow) {
+      rows.push({
+        nazwa_pliku: fileName,
+        numer_zlecenia: parsed.numer_zlecenia,
+        przewoznik: parsed.przewoznik,
+        numer_plomby: "",
+        Uwagi_odczyt: quality.uwagi_excel,
+      });
+    }
     return rows;
   }
-  const uwRow = excelUwagiForSealRow(quality);
+
+  const pl = parsed.plomby.filter((p) => isPlombaFormatSample(p));
+  const badFlat = plombyBezFormatu15(parsed.plomby);
   for (const numer_plomby of pl) {
     rows.push({
       nazwa_pliku: fileName,
@@ -121,6 +162,24 @@ export function buildExcelRows(fileName, parsed, quality) {
       przewoznik: parsed.przewoznik,
       numer_plomby,
       Uwagi_odczyt: uwRow,
+    });
+  }
+  for (const raw of badFlat) {
+    rows.push({
+      nazwa_pliku: fileName,
+      numer_zlecenia: parsed.numer_zlecenia,
+      przewoznik: parsed.przewoznik,
+      numer_plomby: raw,
+      Uwagi_odczyt: uwBad(raw),
+    });
+  }
+  if (pl.length === 0 && badFlat.length === 0) {
+    rows.push({
+      nazwa_pliku: fileName,
+      numer_zlecenia: parsed.numer_zlecenia,
+      przewoznik: parsed.przewoznik,
+      numer_plomby: "",
+      Uwagi_odczyt: quality.uwagi_excel,
     });
   }
   return rows;

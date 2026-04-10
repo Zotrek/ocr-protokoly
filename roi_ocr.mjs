@@ -114,6 +114,31 @@ function cropCanvas(source, sx, sy, sw, sh) {
 }
 
 /**
+ * Szarość + lekki kontrast na pełnym rastrze strony (skany) — przed wycinkami ROI i przed pełnostronicowym OCR.
+ * @param {HTMLCanvasElement} canvas
+ */
+export function enhanceCanvasForOcr(canvas) {
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
+  const w = canvas.width;
+  const h = canvas.height;
+  if (w < 1 || h < 1) return;
+  const img = ctx.getImageData(0, 0, w, h);
+  const d = img.data;
+  const contrast = 1.22;
+  const mid = 128;
+  for (let i = 0; i < d.length; i += 4) {
+    let v = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+    v = (v - mid) * contrast + mid;
+    v = Math.max(0, Math.min(255, v));
+    d[i] = v;
+    d[i + 1] = v;
+    d[i + 2] = v;
+  }
+  ctx.putImageData(img, 0, 0);
+}
+
+/**
  * @param {import('tesseract.js').Worker} worker
  * @param {HTMLCanvasElement | OffscreenCanvas} canvas
  * @returns {Promise<{ text: string, confidence: number }>}
@@ -141,6 +166,7 @@ export async function ocrPage1RoiStitched(page, worker, cfg) {
   canvas.width = viewport.width;
   canvas.height = viewport.height;
   await page.render({ canvasContext: ctx, viewport }).promise;
+  enhanceCanvasForOcr(canvas);
 
   const margin = cfg.margin ?? 0.02;
   const w = canvas.width;
@@ -194,5 +220,6 @@ export async function ocrFullPageText(page, worker) {
   canvas.width = viewport.width;
   canvas.height = viewport.height;
   await page.render({ canvasContext: ctx, viewport }).promise;
+  enhanceCanvasForOcr(canvas);
   return recognizeCanvasWithConfidence(worker, canvas);
 }

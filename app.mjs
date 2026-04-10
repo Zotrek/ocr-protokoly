@@ -30,18 +30,66 @@ const el = {
   btnLogClear: document.getElementById("btnLogClear"),
   chkRecurse: document.getElementById("chkRecurse"),
   inpOcrMin: document.getElementById("inpOcrMin"),
+  inpNameFilter: document.getElementById("inpNameFilter"),
   inputDir: document.getElementById("inputDir"),
+  hintBrowserMode: document.getElementById("hintBrowserMode"),
 };
+
+/** Czy pełny tryb: zapis Excela w folderze + przenoszenie PDF (File System Access). */
+function hasFileSystemAccessFolderPicker() {
+  return typeof window.showDirectoryPicker === "function";
+}
+
+function initBrowserModeHint() {
+  const p = el.hintBrowserMode;
+  if (!p) return;
+  const mono = 'style="font-family: var(--mono); font-size: 0.85em"';
+  if (hasFileSystemAccessFolderPicker()) {
+    p.innerHTML = `<strong>Chrome / Edge:</strong> wybór folderu z zapisem — powstanie <code ${mono}>wynik_YYYY-MM-DD.xlsx</code> w tym folderze, PDF trafią do <code ${mono}>done</code> / <code ${mono}>problematyczne</code>. Bez zaznaczenia „Szukaj w podfolderach” przetwarzane są tylko <code ${mono}>.pdf</code> z katalogu głównego.`;
+  } else {
+    p.innerHTML = `<strong>Firefox (i inne bez File System Access):</strong> wybór folderu działa przez okno systemowe; <strong>OCR i parser</strong> są takie same. Plik <code ${mono}>wynik_YYYY-MM-DD.xlsx</code> zostanie <strong>pobrany</strong> — przeglądarka nie udostępnia zapisu do wybranego katalogu ani automatycznego przenoszenia PDF do <code ${mono}>done</code> / <code ${mono}>problematyczne</code> (ta funkcja jest w Chrome / Edge na HTTPS lub <code ${mono}>localhost</code>).`;
+  }
+}
+
+initBrowserModeHint();
 
 function setBatchFormDisabled(disabled) {
   if (el.chkRecurse) el.chkRecurse.disabled = disabled;
   if (el.inpOcrMin) el.inpOcrMin.disabled = disabled;
+  if (el.inpNameFilter) el.inpNameFilter.disabled = disabled;
   if (el.btnLogClear) el.btnLogClear.disabled = disabled;
 }
 
 const STATUS_IDLE = "Oczekuję na start.";
 const SKIP_DIR_NAMES = new Set(["done", "problematyczne"]);
 const LS_OCR_CONF_MIN = "ocr_proto_conf_min";
+const LS_NAME_FILTER = "ocr_proto_name_filter";
+
+(function initNameFilterUi() {
+  const inp = el.inpNameFilter;
+  if (!inp) return;
+  try {
+    const s = localStorage.getItem(LS_NAME_FILTER);
+    if (s != null) inp.value = s;
+  } catch {
+    /* ignore */
+  }
+  inp.addEventListener("change", () => {
+    try {
+      localStorage.setItem(LS_NAME_FILTER, inp.value);
+    } catch {
+      /* ignore */
+    }
+  });
+})();
+
+/** Czy nazwa pliku (bez ścieżki) zawiera filtr — puste pole = wszystkie. */
+function pdfFileNameMatchesFilter(excelName) {
+  const raw = el.inpNameFilter?.value?.trim().toLowerCase() ?? "";
+  if (!raw) return true;
+  const base = excelName.includes("/") ? excelName.split("/").pop() || excelName : excelName;
+  return base.toLowerCase().includes(raw);
+}
 
 (function initOcrThresholdUi() {
   const inp = el.inpOcrMin;
@@ -214,31 +262,16 @@ async function ocrPdfFile(file, worker, roiCfg) {
         if (r.ocrRegionConfidence) ocrRegionConfidence = r.ocrRegionConfidence;
         source = "OCR str.1 (ROI, ewentualnie pełna strona)";
       } else {
-        text = "";
-        source = "pominięto (brak warstwy tekstowej; OCR tylko str. 1 — protokół)";
+        const r = await ocrFullPageText(page, worker);
+        text = r.text;
+        noteOcrConf(r.confidence);
+        source = `OCR str.${p} (pełna strona)`;
       }
     }
     parts.push(text);
     pageSources.push(source);
   }
-  let fullText = parts.join("\n\n");
-  const probe = parseProtocolText(fullText);
-  if (
-    pdf.numPages >= 2 &&
-    probe.plomby.length === 0 &&
-    probe.uwagi_parse.includes("brak_plomb")
-  ) {
-    const page2 = await pdf.getPage(2);
-    const t2 = (await extractTextNative(page2)).trim();
-    if (t2.length === 0) {
-      setStatus(`${file.name}: strona 2/${pdf.numPages} — OCR (brak plomb po str. 1)…`);
-      const r2 = await ocrFullPageText(page2, worker);
-      parts[1] = r2.text;
-      noteOcrConf(r2.confidence);
-      pageSources[1] = "OCR str.2 (pełna strona — brak plomb po str. 1)";
-      fullText = parts.join("\n\n");
-    }
-  }
+  const fullText = parts.join("\n\n");
   return { text: fullText, pageSources, ocrMinConfidence, ocrRegionConfidence };
 }
 
@@ -323,8 +356,13 @@ async function collectJobsFromDirectoryHandle(root, recurse) {
  * @param {PdfJob[]} jobs
  * @param {FileSystemDirectoryHandle | null} dirHandle
  */
-async function runQueue(jobs, dirHandle) {
+async function runQueue(rawJobs, dirHandle) {
   if (busy) return;
+  const jobs = rawJobs.filter((j) => pdfFileNameMatchesFilter(j.excelName));
+  if (rawJobs.length > 0 && jobs.length === 0) {
+    setStatus("Żaden plik PDF nie pasuje do filtra nazwy — wyczyść lub zmień pole „Filtr nazwy”.");
+    return;
+  }
   if (jobs.length === 0) {
     setStatus("Brak plików PDF do obróbki.");
     return;
@@ -341,6 +379,7 @@ async function runQueue(jobs, dirHandle) {
   const confidenceMin = readConfidenceMinFromUi();
   try {
     localStorage.setItem(LS_OCR_CONF_MIN, String(confidenceMin));
+    if (el.inpNameFilter) localStorage.setItem(LS_NAME_FILTER, el.inpNameFilter.value);
   } catch {
     /* ignore */
   }
@@ -494,8 +533,7 @@ window.addEventListener("keydown", (e) => {
 });
 
 el.btnDir.addEventListener("click", async () => {
-  const fsa = typeof window.showDirectoryPicker === "function";
-  if (fsa) {
+  if (hasFileSystemAccessFolderPicker()) {
     try {
       /** @type {FileSystemDirectoryHandle} */
       const dir = await window.showDirectoryPicker({ mode: "readwrite" });

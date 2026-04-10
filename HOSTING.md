@@ -11,7 +11,7 @@ Aplikacja musi być serwowana przez **HTTPS** (albo `http://127.0.0.1` przy dev)
 3. Nazwa projektu (np. `ocr-protokoly`) → **Create project**.
 4. Spakuj **cały** katalog aplikacji do ZIP: `index.html`, `app.mjs`, `protocol_parse.mjs`, `roi_ocr.mjs`, `export_xlsx.mjs`, `pdf_errors.mjs`, folder `calibration/` (np. `roi_default.json`). W **katalogu głównym** archiwum musi być `index.html` jako strona główna.
 5. Przeciągnij ZIP → **Deploy site**.
-6. Po chwili dostaniesz adres `https://<nazwa>.pages.dev` — tego linku używa klient w **Chrome**.
+6. Po chwili dostaniesz adres `https://<nazwa>.pages.dev` — tego linku używa klient (w **Chrome / Edge** pełny zapis w folderze; w **Firefox** — pobieranie Excela).
 
 **Aktualizacja:** ponownie **Upload** nowego ZIP (lub podłączenie **Git** w tym samym projekcie — wtedy deploy z pusha).
 
@@ -48,14 +48,14 @@ Z katalogu `OCR_protokoly`:
 python3 -m http.server 8765
 ```
 
-W Chrome: `http://127.0.0.1:8765` — **nie** otwieraj `index.html` przez `file://`.
+W przeglądarce: `http://127.0.0.1:8765` — **nie** otwieraj `index.html` przez `file://`. **Firefox:** ta sama strona; przy braku File System Access aplikacja sama przełączy się na pobieranie Excela (bez zapisu do wybranego folderu).
 
 ---
 
-## Checklista dla klienta (Chrome, Windows 11)
+## Checklista dla klienta (Chrome / Edge / Firefox, Windows 11)
 
 - [ ] Wejście na **HTTPS** (link `*.pages.dev`, `github.io` lub własna domena).
-- [ ] **Wybór folderu** z PDF — działa tylko w **bezpiecznym kontekście** (HTTPS / localhost).
+- [ ] **Wybór folderu** z PDF — w **bezpiecznym kontekście** (HTTPS / localhost). W Firefoxie: ten sam wybór katalogu, ale zapis wyniku jako **pobranie** pliku.
 - [ ] Przy pierwszym uruchomieniu możliwy długi czas ładowania (model OCR z sieci).
 
 ---
@@ -63,7 +63,7 @@ W Chrome: `http://127.0.0.1:8765` — **nie** otwieraj `index.html` przez `file:
 ## Co dalej (wspólnie można przejść krok po kroku)
 
 1. Wybór wariantu (A / B / C).
-2. Pierwszy deploy i test linku w Chrome.
+2. Pierwszy deploy i test linku (Chrome / Edge — pełny tryb; Firefox — tryb z pobraniem Excela).
 3. (Opcjonalnie) własna domena w Cloudflare / GitHub.
 4. Dopiero potem rozbudowa o Excel, `done` / `problematyczne` (File System Access — zapis).
 

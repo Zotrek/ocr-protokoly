@@ -7,7 +7,7 @@ Krótki przegląd **co działa w POC** i **co zostaje do zrobienia** (zwłaszcza
 ## Zrobione (POC)
 
 ### Przepływ główny
-- Wybór folderu w **Chrome** z **zapisem** (File System Access) lub wybór folderu przez `<input webkitdirectory>` (pobranie Excela bez przenoszenia PDF).
+- Wybór folderu: **Chrome / Edge** — File System Access (zapis Excela w folderze, przenoszenie PDF) albo **Firefox** — `<input webkitdirectory>` / `directory` (OCR jak w Chrome; Excel przez **pobranie**, bez przenoszenia PDF).
 - Kolejka **jeden PDF po drugim**, jeden worker **Tesseract.js** (polski), **pdf.js** do rasteru stron.
 - Pola: **numer zlecenia**, **przewoźnik**, **lista plomb** → parser w [`protocol_parse.mjs`](protocol_parse.mjs).
 - **Excel** `wynik_YYYY-MM-DD.xlsx` w folderze roboczym: dopisywanie przy drugim uruchomieniu tego samego dnia, normalizacja nagłówków ze starego pliku, **błąd przy uszkodzonym istniejącym .xlsx** → przerwanie zapisu, PDF **nie** przenoszone ([`export_xlsx.mjs`](export_xlsx.mjs)).
@@ -16,11 +16,12 @@ Krótki przegląd **co działa w POC** i **co zostaje do zrobienia** (zwłaszcza
 
 ### OCR / PDF
 - **Warstwa tekstowa PDF** (eksport Word): odczyt bez OCR, jeśli heurystyka uzna tekst za pełny protokół.
-- **Skany / brak tekstu na str. 1**: OCR strony 1 przez **ROI** (`calibration/roi_default.json` + [`roi_ocr.mjs`](roi_ocr.mjs)), przy słabej strukturze — drugi przebieg **cała strona 1**.
-- **Strony 2+** przy skanie (brak warstwy tekstowej): domyślnie **bez OCR** — pusty tekst, źródło: „pominięto (…)”. **Wyjątek:** po złożeniu tekstu z całego PDF nadal **brak plomb** w parserze **i** strona 2 ma **pustą** warstwę tekstową → **jednorazowy OCR pełnej strony 2** (lista może być na drugiej kartce skanu).
-- Gdy PDF ma **tekst natywny** na kolejnych stronach, jest on **łączony** do parsowania (np. załączniki z tekstem).
+- **Skany / brak tekstu na str. 1**: OCR strony 1 przez **ROI** (`calibration/roi_default.json` + [`roi_ocr.mjs`](roi_ocr.mjs)), przy słabej strukturze — drugi przebieg **cała strona 1**; przed OCR na rastrze — **szarość + lekki kontrast** (`enhanceCanvasForOcr` w [`roi_ocr.mjs`](roi_ocr.mjs)).
+- **Strony 2+** przy skanie (brak warstwy tekstowej): **OCR pełnej strony** dla każdej takiej strony (teksty łączone `\n\n` → parser). Str. 1 nadal **ROI** (+ ewentualnie pełna str. 1). Gdy strona ma **warstwę tekstową**, używany jest on zamiast OCR.
+- **Wiele protokołów w jednym PDF:** `parseProtocolText` dzieli po nagłówku `Zlecenie transportowe nr:` i zwraca **`segments`** — Excel: osobne wiersze z **numerem zlecenia / przewoźnikiem** per segment.
+- **Lista w dwóch kolumnach** (wiele `1. … 2. …` w jednym wierszu): wyciąganie plomb po **pozycjach `k.`** z zatrzymaniem przed następnym `k.` (funkcja `plombyFromListLine` w [`protocol_parse.mjs`](protocol_parse.mjs)).
 - **ROI wąska vs A4**: w `roi_default.json` jest **`narrow_page_width_pt_max`** (domyślnie **585** pt w przestrzeni PDF): strona węższa niż próg (np. skan ~578×824) używa **`regions_norm_narrow`**, szersza — **`regions_norm`**. Gdy progu szerokości **nie ma** w JSON, wybór „wąskiej” mapy pada na **`aspect_ratio_narrow_max`** (fallback).
-- **Ograniczenie:** lista wyłącznie na **str. 3+** (skan bez tekstu), albo str. 2 z „śmieciową” warstwą tekstową zamiast obrazu — nadal bez pełnego wsparcia; str. 2 z pustą warstwą jest **OCR-owana** tylko gdy po str. 1 **brak plomb** w parserze.
+- **Ograniczenie:** strona ze **śmieciową** warstwą tekstową (niepustą, ale bezużyteczną) — nie włączy OCR i może „zgubić” obraz; rzadkie edge case’y layoutu (np. lista bez wzorca `k.`) wymagają dalszego dopasowania regexów.
 - **Pewność Tesseract**: przy **OCR ROI str. 1** (wybrana ścieżka ROI, nie pełna strona) — osobno **numer zlecenia / przewoźnik / lista plomb** vs próg (`niski_confidence_ocr_roi_*` w `Uwagi_odczyt`); przy **pełnej stronie 1** lub braku mapy ROI — jak wcześniej **jedna** wartość `niski_confidence_ocr(min)`. Regulacja progu w UI + `localStorage`.
 - **Zamknięcie karty**: `pagehide` → `terminate()` workera Tesseract (zwolnienie zasobów).
 - Czytelne błędy **pdf.js**: [`pdf_errors.mjs`](pdf_errors.mjs) (hasło, uszkodzony plik itd.).
@@ -29,6 +30,7 @@ Krótki przegląd **co działa w POC** i **co zostaje do zrobienia** (zwłaszcza
 - [`tools/calibrate_layout.py`](tools/calibrate_layout.py) + [`calibration/roi_hints.json`](calibration/roi_hints.json) (wymaga `pdftotext` z Popplera).
 
 ### UX
+- **Filtr nazwy PDF** (pole „Filtr nazwy”): przetwarzane są tylko pliki, których **nazwa pliku** (bez ścieżki podfolderu) **zawiera** wpisany fragment; bez rozróżniania wielkości liter; `localStorage`.
 - Pasek postępu (per plik), status, log na żywo.
 - **Przerwij** batch + **Esc**; po przerwaniu: częściowy Excel (jeśli były wiersze), przeniesienia tylko dla przetworzonych.
 - **Pobierz log (.txt)**, **Wyczyść log**; blokada opcji (podfoldery, próg OCR) w trakcie batcha.
@@ -56,10 +58,10 @@ Krótki przegląd **co działa w POC** i **co zostaje do zrobienia** (zwłaszcza
 
 ### Excel / audyt (doprecyzowanie vs §3.2)
 - [x] Częściowy sukces plomb (część numerów odrzucona z powodu formatu): wiersze z **poprawnymi** 15 cyframi mają czytelną adnotację (`excelUwagiForSealRow` w [`export_xlsx.mjs`](export_xlsx.mjs)); łączenie z innymi problemami pliku (np. niski OCR) nadal w jednej kolumnie.
-- [ ] Przy **pojedynczej** plombie problematycznej vs pozostałe `ok` — nadal bez osobnego wiersza dla odrzuconego numeru (nie ma go w Excelu).
+- [x] Wiersze Excel dla numerów **12–18 cyfr** z listy, które **nie są** docelowym **15** cyfr: kolumna `numer_plomby` = odczyt, `Uwagi_odczyt` z adnotacją; wiersze z poprawnymi 15 cyframi bez zmian.
 
 ### Produkt / techniczne
-- [ ] **Filtr nazw PDF** (jeśli potrzebny poza `*.pdf`).
+- [x] **Filtr nazwy pliku** (zawiera) — poza domyślnym `*.pdf` w katalogu.
 - [ ] **Paczka offline** + ewentualnie `.bat` + lokalny serwer (opis w §6 spec — nie zautomatyzowane w repo).
 - [ ] **CSP / SRI** pod konkretny hosting (jeśli polityka bezpieczeństwa wymaga).
 - [x] **Terminacja workera OCR** przy `pagehide` (oszczędność zasobów).
@@ -84,4 +86,4 @@ Pełna lista checkboxów: **§8** w [`OCR_protokoly_skan_spec.md`](OCR_protokoly
 
 ---
 
-*Ostatnia aktualizacja dokumentu: 2026-04-10 — m.in. `nativeTextLooksLikeProtocol`, OCR str. 2 przy braku plomb, ROI wąska/A4, test `roi_pick`.*
+*Ostatnia aktualizacja dokumentu: 2026-04-10 — m.in. OCR wszystkich stron, `segments`, wiersze Excel dla plomb poza 15 cyframi, preprocess obrazu, filtr nazwy pliku.*

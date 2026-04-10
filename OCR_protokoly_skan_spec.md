@@ -9,7 +9,7 @@
 
 ## 1. Cel
 
-Aplikacja uruchamiana przez klienta w **Google Chrome (Windows 11)**:
+Aplikacja uruchamiana przez klienta w przeglądarce (**Chrome / Edge** — pełna funkcja zapisu w folderze; **Firefox** — OCR i Excel przez pobranie, bez przenoszenia PDF). Docelowo **Windows 11**:
 
 1. Klient wskazuje **folder roboczy** zawierający skany PDF uzupełnionych i podpisanych protokołów.
 2. Dla każdego pliku PDF (kolejno, jeden po drugim) wykonywany jest **OCR** (stały layout strony).
@@ -132,7 +132,9 @@ Plik trafia do **`done`** tylko wtedy, gdy **wszystkie** pola krytyczne spełnia
 - **Kolejka:** pliki PDF przetwarzane **sekwencyjnie** (jeden po drugim), bez równoległego OCR wielu dokumentów.
 - **Jeden worker OCR:** pojedyncza instancja Tesseract.js (`createWorker`), ponowne użycie dla całej kolejki w danym uruchomieniu — mniejsze szczytowe zużycie CPU/RAM niż wiele workerów.
 - **ROI na str. 1 (POC):** `calibration/roi_default.json` — dwie mapy prostokątów znormalizowanych: `regions_norm` (typowa szerokość A4 ~595 pt) oraz `regions_norm_narrow` (węższe skany, np. ~578 pt). Jeśli w pliku jest **`narrow_page_width_pt_max`** (np. 585), wybór mapy opiera się na **szerokości strony w przestrzeni PDF** (`getViewport({ scale: 1 })`): poniżej progu → wąska mapa, w przeciwnym razie → zwykła. **Bez** tego progu szerokości decyzja może padać na **`aspect_ratio_narrow_max`** (fallback dla nietypowych proporcji).
-- **OCR a numer strony (POC):** strona **1** — warstwa natywna lub, gdy jej brak / tekst nie wygląda jak protokół (`nativeTextLooksLikeProtocol`, m.in. **„Przewoznik”** bez ogonka), **OCR** (ROI, ewentualnie drugi przebieg całej strony 1). Strony **2+**: jeśli jest **warstwa tekstowa**, tekst jest **dołączany**; jeśli **nie ma** warstwy, domyślnie **OCR pomijany**. **Wyjątek:** po złożeniu tekstu z dokumentu parser zgłasza **brak plomb**, a **strona 2** ma pustą warstwę → **OCR pełnej strony 2** (jedna dodatkowa próba). **Nadal otwarte:** pola tylko na **str. 3+** bez tekstu, lub str. 2 z treścią ale bez wykrywalnej listy — bez dalszego rozszerzenia pipeline.
+- **OCR a numer strony (POC):** strona **1** — warstwa natywna lub, gdy jej brak / tekst nie wygląda jak protokół (`nativeTextLooksLikeProtocol`), **OCR** (ROI, ewentualnie drugi przebieg całej strony 1). Strony **2+**: przy **braku** użytecznej warstwy tekstowej — **OCR pełnej strony** (każda strona osobno); tekst stron jest **łączony** przed parsowaniem. Przy warstwie natywnej na danej stronie — użycie tekstu z PDF bez OCR na tej stronie.
+- **Wiele protokołów w jednym pliku:** parser dzieli po powtarzającym się nagłówku `Zlecenie transportowe nr:` i buduje **`segments`** (osobne zlecenie / przewoźnik / lista plomb); Excel — wiersze z poprawnym `numer_zlecenia` per segment.
+- **Lista plomb w wielu kolumnach w jednym wierszu:** wykrywanie kolejnych pozycji `k.` … przed następnym `k.` (bez łączenia cyfr w jeden długi numer).
 - **Dalsze etapy** (Excel, `done` / `problematyczne`, dopieszczenie ROI, walidacja regexów) — patrz sekcja 8.
 
 **Hosting:** krok po kroku — [`HOSTING.md`](HOSTING.md).
@@ -146,7 +148,7 @@ Plik trafia do **`done`** tylko wtedy, gdy **wszystkie** pola krytyczne spełnia
 - [ ] Przykładowe skany bitowe (kilka reprezentatywnych + edge cases: niski kontrast, skos, dopiski odręczne).
 - [ ] Dokładna **długość** (i ewentualnie prefiks) dla `numer_zlecenia` i `numer_plomby` (regexy).
 - [ ] Definicja ROI na stronie — **częściowo:** `roi_default.json` + wąska mapa + próg szerokości w pt; dalsze dopasowanie po kolejnych skanach.
-- [ ] Jeśli zlecenia wymagają pól na **str. 3+** lub na str. 2 w nietrywialnych przypadkach — dalszy OCR poza heurystyką „brak plomb → OCR str. 2”.
+- [x] OCR **wszystkich** stron skanu bez warstwy tekstowej (nie tylko str. 1 + wyjątek str. 2).
 - [x] Progi **confidence** (POC: minimalna pewność Tesseract z użytych przebiegów OCR na pliku vs próg `OCR_CONFIDENCE_MIN` w `protocol_parse.mjs`; brak warstwy tekstowej na stronie → brak progu dla tej strony).
 - [ ] Doprecyzowanie progów per pole (ROI vs pełna strona).
 - [x] Nazwa i lokalizacja pliku Excel — **§3.3** (`wynik_YYYY-MM-DD.xlsx`, folder roboczy; drugie uruchomienie: dopisanie wierszy, usunięcie starego pliku, zapis nowego).
@@ -165,3 +167,6 @@ Plik trafia do **`done`** tylko wtedy, gdy **wszystkie** pola krytyczne spełnia
 | 2026-04-10 | §3.3: nazwa `wynik_YYYY-MM-DD.xlsx`, dopisywanie przy kolejnym uruchomieniu tego samego dnia (po wczytaniu: usunięcie starego pliku, zapis nowego z pełną treścią). |
 | 2026-04-10 | §2 / §7 / §8: skany w `dane testowe/`, ROI `regions_norm` + `regions_norm_narrow` i próg `narrow_page_width_pt_max`, OCR str. 1 vs pomijanie OCR str. 2+ przy braku tekstu, otwarty punkt pola na str. 2+. |
 | 2026-04-10 | §7: `nativeTextLooksLikeProtocol`; wyjątek OCR str. 2 przy braku plomb i pustej warstwie str. 2. |
+| 2026-04-10 | §1: dopisek o Firefoxie (OCR + Excel przez pobranie; FSA tylko Chrome/Edge). |
+| 2026-04-10 | §7: OCR str. 2+ przy braku tekstu; wiele protokołów (`segments`); lista wielokolumnowa w wierszu. |
+| 2026-04-10 | §7: preprocess rastra przed OCR; filtr nazwy pliku; wiersze Excel dla plomb poza 15 cyframi. |

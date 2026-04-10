@@ -3,7 +3,15 @@
  * Działa na tekście z warstwy PDF lub na wyniku OCR (z drobnymi odchyleniami).
  */
 
-/** @typedef {{ numer_zlecenia: string, przewoznik: string, plomby: string[], uwagi_parse: string[] }} ProtocolFields */
+/**
+ * @typedef {{
+ *   numer_zlecenia: string,
+ *   przewoznik: string,
+ *   plomby: string[],
+ *   uwagi_parse: string[],
+ *   segments?: { numer_zlecenia: string, przewoznik: string, plomby: string[] }[],
+ * }} ProtocolFields
+ */
 /** @typedef {{ numer_zlecenia: number, przewoznik: number, lista_plomb: number }} RoiOcrConfidences */
 
 const RE_ZLECENIE = /Zlecenie\s+transportowe\s+nr\s*:\s*(\d+)/i;
@@ -13,8 +21,51 @@ const RE_MIEJSCE_DOSTAWY = /Miejsce\s+dostawy\s*:/i;
 /** Nagłówek listy — tolerancja na „plomby”, błędne ostatnie litery z OCR */
 const RE_LISTA_PLOMB = /Lista\s+odebranych\s+plom[a-z]*\s*:/i;
 const RE_UWAGI = /^Uwagi\s*:/im;
-/** Numery z ewentualnymi spacjami w środku (OCR); po czyszczeniu 12–18 cyfr */
-const RE_PLOMBA_WIERSZ = /^\s*(\d+)\.\s*((?:\d|\s){12,40})\s*$/;
+
+/**
+ * Wiele pozycji „k. cyfry” w jednej linii (np. dwie kolumny); zatrzymanie przed następnym „k.”.
+ * @param {string} line
+ * @returns {string[]}
+ */
+function plombyFromListLine(line) {
+  const out = [];
+  const seen = new Set();
+  let i = 0;
+  while (i < line.length) {
+    const sub = line.slice(i);
+    const m = sub.match(/^(\s*)(\d+)\.\s*/);
+    if (!m) {
+      i++;
+      continue;
+    }
+    i += m[0].length;
+    let j = i;
+    let buf = "";
+    while (j < line.length) {
+      const rest = line.slice(j);
+      if (/^\s+\d+\.\s/.test(rest) && buf.replace(/\s/g, "").length >= 12) break;
+      const c = line[j];
+      if (c === " " || c === "\t") {
+        buf += c;
+        j++;
+        continue;
+      }
+      if (/\d/.test(c)) {
+        buf += c;
+        j++;
+        continue;
+      }
+      break;
+    }
+    const digits = buf.replace(/\s+/g, "");
+    if (/^\d{12,18}$/.test(digits) && !seen.has(digits)) {
+      seen.add(digits);
+      out.push(digits);
+    }
+    i = j;
+  }
+  return out;
+}
 
 /** Średnia pewność Tesseract (0–100); poniżej → problematyczne (spec §4). */
 export const OCR_CONFIDENCE_MIN = 55;
@@ -38,12 +89,47 @@ export function nativeTextLooksLikeProtocol(s) {
 }
 
 /**
- * @param {string} raw
+ * Wyciąga numery plomb z jednego lub wielu bloków „Lista odebranych…” (wielokolumnowe wiersze).
+ * @param {string} segmentNormalized
+ * @returns {string[]}
+ */
+function extractPlombyAllListas(segmentNormalized) {
+  const seen = new Set();
+  /** @type {string[]} */
+  const out = [];
+  let pos = 0;
+  while (pos < segmentNormalized.length) {
+    const rest = segmentNormalized.slice(pos);
+    const li = rest.search(RE_LISTA_PLOMB);
+    if (li === -1) break;
+    const absStart = pos + li;
+    const block = segmentNormalized.slice(absStart);
+    const u = block.search(RE_UWAGI);
+    const nz = block.slice(30).search(/Zlecenie\s+transportowe\s+nr\s*:/i);
+    let len = block.length;
+    if (u !== -1) len = Math.min(len, u);
+    if (nz !== -1) len = Math.min(len, 30 + nz);
+    const slice = block.slice(0, Math.max(len, 1));
+    for (const line of slice.split("\n")) {
+      for (const digits of plombyFromListLine(line)) {
+        if (!seen.has(digits)) {
+          seen.add(digits);
+          out.push(digits);
+        }
+      }
+    }
+    pos = absStart + Math.max(slice.length, 1);
+  }
+  return out;
+}
+
+/**
+ * Jeden fragment tekstu (jedno „Zlecenie transportowe…”).
+ * @param {string} normalized
  * @returns {ProtocolFields}
  */
-export function parseProtocolText(raw) {
+function parseProtocolSegment(normalized) {
   const uwagi = [];
-  const normalized = raw.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
   const z = normalized.match(RE_ZLECENIE);
   const numer_zlecenia = z ? z[1].trim() : "";
 
@@ -60,20 +146,7 @@ export function parseProtocolText(raw) {
       .trim();
   }
 
-  const plomby = [];
-  const li = normalized.search(RE_LISTA_PLOMB);
-  if (li !== -1) {
-    let tail = normalized.slice(li);
-    const u = tail.search(RE_UWAGI);
-    if (u !== -1) tail = tail.slice(0, u);
-    const lines = tail.split("\n");
-    for (const line of lines) {
-      const m = line.match(RE_PLOMBA_WIERSZ);
-      if (!m) continue;
-      const digits = m[2].replace(/\s+/g, "");
-      if (/^\d{12,18}$/.test(digits)) plomby.push(digits);
-    }
-  }
+  const plomby = extractPlombyAllListas(normalized);
 
   if (!numer_zlecenia) uwagi.push("brak_numeru_zlecenia");
   if (!przewoznik) uwagi.push("brak_przewoznika");
@@ -84,6 +157,48 @@ export function parseProtocolText(raw) {
     przewoznik,
     plomby,
     uwagi_parse: uwagi,
+  };
+}
+
+/**
+ * @param {string} raw
+ * @returns {ProtocolFields}
+ */
+export function parseProtocolText(raw) {
+  const normalized = raw.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  const chunks = normalized
+    .split(/(?=Zlecenie\s+transportowe\s+nr\s*:)/gi)
+    .map((c) => c.trim())
+    .filter((c) => /Zlecenie\s+transportowe\s+nr\s*:/i.test(c));
+
+  if (chunks.length <= 1) {
+    const p = parseProtocolSegment(normalized);
+    return { ...p, segments: undefined };
+  }
+
+  /** @type {{ numer_zlecenia: string, przewoznik: string, plomby: string[] }[]} */
+  const segments = [];
+  const uwagi = [];
+  for (const ch of chunks) {
+    const p = parseProtocolSegment(ch);
+    segments.push({
+      numer_zlecenia: p.numer_zlecenia,
+      przewoznik: p.przewoznik,
+      plomby: p.plomby,
+    });
+    for (const u of p.uwagi_parse) {
+      if (!uwagi.includes(u)) uwagi.push(u);
+    }
+  }
+
+  const plomby = segments.flatMap((s) => s.plomby);
+
+  return {
+    numer_zlecenia: segments[0]?.numer_zlecenia ?? "",
+    przewoznik: segments[0]?.przewoznik ?? "",
+    plomby,
+    uwagi_parse: uwagi,
+    segments,
   };
 }
 
@@ -100,6 +215,15 @@ export function isPlombaFormatSample(numer) {
  * @param {ProtocolFields} parsed
  */
 export function protocolStructuralOk(parsed) {
+  if (parsed.segments?.length) {
+    return parsed.segments.every(
+      (s) =>
+        s.numer_zlecenia?.trim() &&
+        s.przewoznik?.trim() &&
+        s.plomby.length > 0 &&
+        s.plomby.every(isPlombaFormatSample)
+    );
+  }
   if (!parsed.numer_zlecenia?.trim()) return false;
   if (!parsed.przewoznik?.trim()) return false;
   if (parsed.plomby.length === 0) return false;
@@ -117,9 +241,17 @@ export function protocolStructuralOk(parsed) {
  */
 export function protocolReadoutQuality(parsed, meta = {}) {
   const issues = [];
-  if (!parsed.numer_zlecenia?.trim()) issues.push("brak_numeru_zlecenia");
-  if (!parsed.przewoznik?.trim()) issues.push("brak_przewoznika");
-  if (parsed.plomby.length === 0) issues.push("brak_plomb");
+  if (parsed.segments?.length) {
+    for (const s of parsed.segments) {
+      if (!s.numer_zlecenia?.trim()) issues.push("brak_numeru_zlecenia");
+      if (!s.przewoznik?.trim()) issues.push("brak_przewoznika");
+      if (s.plomby.length === 0) issues.push("brak_plomb");
+    }
+  } else {
+    if (!parsed.numer_zlecenia?.trim()) issues.push("brak_numeru_zlecenia");
+    if (!parsed.przewoznik?.trim()) issues.push("brak_przewoznika");
+    if (parsed.plomby.length === 0) issues.push("brak_plomb");
+  }
   const badPlomby = parsed.plomby.filter((p) => !isPlombaFormatSample(p));
   if (badPlomby.length) issues.push("plomba_format");
   const threshold =
@@ -142,13 +274,14 @@ export function protocolReadoutQuality(parsed, meta = {}) {
       issues.push(`niski_confidence_ocr(${Math.round(oc)})`);
     }
   }
-  const ok = issues.length === 0;
+  const issueList = [...new Set(issues)];
+  const ok = issueList.length === 0;
   return {
     ok,
     destSubfolder: ok ? "done" : "problematyczne",
-    uwagi_excel: ok ? "ok" : issues.join("; "),
+    uwagi_excel: ok ? "ok" : issueList.join("; "),
     /** Tokeny zgodne z `uwagi_excel` (split po `"; "`); do Excela i testów. */
-    issues,
+    issues: issueList,
   };
 }
 

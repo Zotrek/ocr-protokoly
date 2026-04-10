@@ -97,7 +97,20 @@
         margin: 0;
         color: var(--text-muted);
         font-size: 0.95rem;
-        max-width: 36ch;
+        max-width: 52ch;
+      }
+
+      .lead .lead-sub {
+        display: block;
+        margin-top: 0.55rem;
+        font-size: 0.88em;
+        line-height: 1.45;
+        color: var(--text-muted);
+      }
+
+      .lead .lead-sub code {
+        font-family: var(--mono);
+        font-size: 0.88em;
       }
 
       .panel {
@@ -221,6 +234,17 @@
         width: 1rem;
         height: 1rem;
         accent-color: var(--accent-dim);
+      }
+
+      .options-row input[type="text"]#inpNameFilter {
+        width: min(14rem, 100%);
+        padding: 0.25rem 0.45rem;
+        font-family: var(--mono);
+        font-size: 0.82rem;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        background: var(--bg-elevated);
+        color: var(--text);
       }
 
       .options-row input[type="number"] {
@@ -354,6 +378,7 @@
         <h1>OCR protokołów</h1>
         <p class="lead">
           Wybierz <strong>folder</strong> z plikami PDF — przetwarzanie w kolejce, jeden silnik OCR (polski).
+          <span class="lead-sub">Działa też w <strong>Firefoxie</strong> — Excel przez pobranie; przenoszenie PDF do <code>done</code> / <code>problematyczne</code> wymaga Chrome lub Edge (File System Access).</span>
         </p>
       </header>
 
@@ -370,6 +395,10 @@
             <input type="checkbox" id="chkRecurse" />
             Szukaj PDF w podfolderach (pomijane: <code style="font-family: var(--mono); font-size: 0.8em">done</code>,
             <code style="font-family: var(--mono); font-size: 0.8em">problematyczne</code>)
+          </label>
+          <label title="Tylko pliki PDF, których nazwa (bez ścieżki podfolderu) zawiera wpisany tekst; bez rozróżniania wielkości liter. Puste = wszystkie.">
+            Filtr nazwy
+            <input type="text" id="inpNameFilter" maxlength="120" placeholder="np. faktura" autocomplete="off" />
           </label>
           <div class="ocr-threshold-block">
             <label
@@ -393,11 +422,7 @@
             </p>
           </div>
         </div>
-        <p class="hint">
-          <strong>Chrome:</strong> wybór folderu z uprawnieniem do zapisu — powstanie <code style="font-family: var(--mono); font-size: 0.85em">wynik_YYYY-MM-DD.xlsx</code>, PDF trafią do
-          <code style="font-family: var(--mono); font-size: 0.85em">done</code> /
-          <code style="font-family: var(--mono); font-size: 0.85em">problematyczne</code>. Przetwarzane są tylko <code style="font-family: var(--mono); font-size: 0.85em">.pdf</code> z katalogu głównego (nie z podfolderów). Inna przeglądarka: pobieranie Excela bez przenoszenia plików.
-        </p>
+        <p class="hint" id="hintBrowserMode"></p>
       </section>
 
       <section class="panel status-row">
@@ -418,7 +443,7 @@
       </section>
     </div>
 
-    <input type="file" id="inputDir" multiple hidden webkitdirectory directory />
+    <input type="file" id="inputDir" multiple hidden webkitdirectory mozdirectory directory />
 
     <script type="module" src="./app.mjs"></script>
   </body>
