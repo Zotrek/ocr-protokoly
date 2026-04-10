@@ -145,7 +145,7 @@ Plik trafia do **`done`** tylko wtedy, gdy **wszystkie** pola krytyczne spełnia
 - [ ] Definicja ROI na stronie (współrzędne lub proporcje względem strony A4) — po próbkach.
 - [ ] Progi **confidence** (globalne vs. per pole).
 - [x] Nazwa i lokalizacja pliku Excel — **§3.3** (`wynik_YYYY-MM-DD.xlsx`, folder roboczy; drugie uruchomienie: dopisanie wierszy, usunięcie starego pliku, zapis nowego).
-- [ ] Czy tworzyć `done` / `problematyczne` automatycznie, jeśli nie istnieją (zakładamy **tak**).
+- [x] Czy tworzyć `done` / `problematyczne` automatycznie, jeśli nie istnieją — **tak** (POC: `getDirectoryHandle(..., { create: true })`).
 - [ ] Zachowanie przy **duplikatach** nazw plików w podfolderach.
 
 ---

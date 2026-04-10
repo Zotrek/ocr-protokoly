@@ -1,0 +1,9 @@
+{
+  "description": "Default normalized ROIs for A4 protocol page 1 (from calibration/roi_hints + small margin). Used when OCR runs on scans.",
+  "margin": 0.02,
+  "regions_norm": {
+    "numer_zlecenia": { "left": 0.10, "top": 0.06, "width": 0.34, "height": 0.055 },
+    "przewoznik": { "left": 0.10, "top": 0.13, "width": 0.82, "height": 0.095 },
+    "lista_plomb": { "left": 0.10, "top": 0.43, "width": 0.32, "height": 0.49 }
+  }
+}

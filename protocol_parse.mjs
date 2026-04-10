@@ -68,3 +68,39 @@ export function parseProtocolText(raw) {
 export function isPlombaFormatSample(numer) {
   return /^\d{15}$/.test(numer);
 }
+
+/**
+ * Kwalifikacja do folderu done / problematyczne i treść kolumny Uwagi_odczyt (spec §3–4).
+ * @param {ProtocolFields} parsed
+ */
+export function protocolReadoutQuality(parsed) {
+  const issues = [];
+  if (!parsed.numer_zlecenia?.trim()) issues.push("brak_numeru_zlecenia");
+  if (!parsed.przewoznik?.trim()) issues.push("brak_przewoznika");
+  if (parsed.plomby.length === 0) issues.push("brak_plomb");
+  const badPlomby = parsed.plomby.filter((p) => !isPlombaFormatSample(p));
+  if (badPlomby.length) issues.push("plomba_format");
+  const ok = issues.length === 0;
+  return {
+    ok,
+    destSubfolder: ok ? "done" : "problematyczne",
+    uwagi_excel: ok ? "ok" : issues.join("; "),
+  };
+}
+
+/**
+ * @param {ProtocolFields} a
+ * @param {ProtocolFields} b
+ * @returns {"a" | "b"}
+ */
+export function pickBetterParsedKey(a, b) {
+  const qa = protocolReadoutQuality(a);
+  const qb = protocolReadoutQuality(b);
+  if (qa.ok && !qb.ok) return "a";
+  if (!qa.ok && qb.ok) return "b";
+  const score = (p) =>
+    (p.numer_zlecenia ? 4 : 0) +
+    (p.przewoznik ? 4 : 0) +
+    p.plomby.filter(isPlombaFormatSample).length * 2;
+  return score(a) >= score(b) ? "a" : "b";
+}
