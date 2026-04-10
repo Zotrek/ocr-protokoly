@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="pl">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>OCR protokoły — POC</title>
+    <style>
+      :root {
+        font-family: system-ui, sans-serif;
+        line-height: 1.45;
+      }
+      body {
+        max-width: 42rem;
+        margin: 1rem auto;
+        padding: 0 1rem;
+      }
+      #log {
+        white-space: pre-wrap;
+        background: #f4f4f5;
+        padding: 0.75rem;
+        border-radius: 8px;
+        max-height: 22rem;
+        overflow: auto;
+        font-size: 0.8rem;
+      }
+      progress {
+        width: 100%;
+        height: 1.25rem;
+      }
+      button {
+        margin: 0.25rem 0.5rem 0.25rem 0;
+      }
+      .muted {
+        color: #555;
+        font-size: 0.9rem;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>OCR protokoły — POC</h1>
+    <p class="muted">
+      <strong>Kolejka</strong> plików PDF, <strong>jeden worker</strong> Tesseract (polski). Wymaga
+      <strong>HTTPS</strong> lub <code>http://127.0.0.1</code> — nie działa z
+      <code>file://</code>.
+    </p>
+    <p>
+      <button type="button" id="btnDir">Wybierz folder z PDF</button>
+      <button type="button" id="btnFiles">Wybierz pliki PDF…</button>
+    </p>
+    <input type="file" id="inputFiles" accept="application/pdf" multiple hidden />
+    <p id="status">Gotowe.</p>
+    <progress id="prog" max="100" value="0"></progress>
+    <h2>Podgląd tekstu (skrót pierwszej strony każdego pliku)</h2>
+    <pre id="log"></pre>
+
+    <script type="module">
+      import Tesseract from "https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/+esm";
+      import * as pdfjsLib from "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/+esm";
+
+      pdfjsLib.GlobalWorkerOptions.workerSrc =
+        "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.worker.min.mjs";
+
+      const el = {
+        status: document.getElementById("status"),
+        prog: document.getElementById("prog"),
+        log: document.getElementById("log"),
+        btnDir: document.getElementById("btnDir"),
+        btnFiles: document.getElementById("btnFiles"),
+        inputFiles: document.getElementById("inputFiles"),
+      };
+
+      /** @type {import('tesseract.js').Worker | null} */
+      let ocrWorker = null;
+      let busy = false;
+
+      function setStatus(text) {
+        el.status.textContent = text;
+      }
+
+      function appendLog(chunk) {
+        el.log.textContent += chunk;
+        el.log.scrollTop = el.log.scrollHeight;
+      }
+
+      async function ensureOcrWorker() {
+        if (ocrWorker) return ocrWorker;
+        setStatus("Inicjalizacja OCR (pierwsze uruchomienie może trwać dłużej — pobierany jest model języka)…");
+        ocrWorker = await Tesseract.createWorker("pol", 1, {
+          logger(m) {
+            if (m.status === "recognizing text" && typeof m.progress === "number") {
+              setStatus(`OCR strony… ${Math.round(m.progress * 100)}%`);
+            }
+          },
+        });
+        setStatus("OCR gotowy.");
+        return ocrWorker;
+      }
+
+      /**
+       * @param {File} file
+       * @param {import('tesseract.js').Worker} worker
+       * @returns {Promise<string>} Pełny tekst ze wszystkich stron (dla POC)
+       */
+      async function ocrPdfFile(file, worker) {
+        const data = new Uint8Array(await file.arrayBuffer());
+        const pdf = await pdfjsLib.getDocument({ data }).promise;
+        const parts = [];
+        for (let p = 1; p <= pdf.numPages; p++) {
+          setStatus(`${file.name}: strona ${p}/${pdf.numPages}`);
+          const page = await pdf.getPage(p);
+          const scale = 2;
+          const viewport = page.getViewport({ scale });
+          const canvas = document.createElement("canvas");
+          const ctx = canvas.getContext("2d");
+          if (!ctx) throw new Error("Brak kontekstu 2D canvas");
+          canvas.width = viewport.width;
+          canvas.height = viewport.height;
+          await page.render({ canvasContext: ctx, viewport }).promise;
+          const {
+            data: { text },
+          } = await worker.recognize(canvas);
+          parts.push(text);
+        }
+        return parts.join("\n\n");
+      }
+
+      /**
+       * @param {File[]} files
+       */
+      async function runQueue(files) {
+        if (busy) return;
+        const list = files.filter((f) => f.name.toLowerCase().endsWith(".pdf"));
+        if (list.length === 0) {
+          setStatus("Brak plików PDF.");
+          return;
+        }
+        list.sort((a, b) => a.name.localeCompare(b.name, "pl"));
+        busy = true;
+        el.btnDir.disabled = true;
+        el.btnFiles.disabled = true;
+        el.log.textContent = "";
+        el.prog.max = list.length;
+        el.prog.value = 0;
+        setStatus(`Znaleziono ${list.length} plik(ów) PDF. Start…`);
+
+        try {
+          const worker = await ensureOcrWorker();
+          for (let i = 0; i < list.length; i++) {
+            const file = list[i];
+            try {
+              const fullText = await ocrPdfFile(file, worker);
+              const preview = fullText.slice(0, 2500);
+              appendLog(`═══ ${file.name} ═══\n${preview}${fullText.length > 2500 ? "\n… [ucięto]\n" : "\n"}\n`);
+            } catch (err) {
+              const msg = err instanceof Error ? err.message : String(err);
+              appendLog(`═══ ${file.name} ═══\nBŁĄD: ${msg}\n\n`);
+            }
+            el.prog.value = i + 1;
+            setStatus(`Przetworzono ${i + 1} / ${list.length}`);
+          }
+          setStatus(`Zakończono: ${list.length} plik(ów).`);
+        } finally {
+          busy = false;
+          el.btnDir.disabled = false;
+          el.btnFiles.disabled = false;
+        }
+      }
+
+      el.btnDir.addEventListener("click", async () => {
+        if (!("showDirectoryPicker" in window)) {
+          setStatus("Ta przeglądarka nie obsługuje wyboru folderu. Użyj Chrome i HTTPS (lub wybierz pliki).");
+          return;
+        }
+        try {
+          /** @type {FileSystemDirectoryHandle} */
+          const dir = await window.showDirectoryPicker({ mode: "read" });
+          const files = [];
+          for await (const [, handle] of dir.entries()) {
+            if (handle.kind === "file" && handle.name.toLowerCase().endsWith(".pdf")) {
+              files.push(await handle.getFile());
+            }
+          }
+          await runQueue(files);
+        } catch (e) {
+          if (e instanceof Error && e.name === "AbortError") {
+            setStatus("Anulowano wybór folderu.");
+            return;
+          }
+          const msg = e instanceof Error ? e.message : String(e);
+          setStatus(`Błąd: ${msg}`);
+        }
+      });
+
+      el.btnFiles.addEventListener("click", () => el.inputFiles.click());
+
+      el.inputFiles.addEventListener("change", async () => {
+        const files = el.inputFiles.files ? Array.from(el.inputFiles.files) : [];
+        el.inputFiles.value = "";
+        await runQueue(files);
+      });
+    </script>
+  </body>
+</html>
