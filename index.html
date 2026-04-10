@@ -313,6 +313,32 @@
       .res-chip.err  { background: #7f1d1d22; color: #f87171; border: 1px solid #f8717144; }
       .res-chip.tot  { background: var(--bg); color: var(--text-muted); border: 1px solid var(--border); }
 
+      #folderInfo {
+        display: none;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.45rem 0.75rem;
+        background: var(--bg-elevated);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        font-size: 0.82rem;
+        color: var(--text-muted);
+        overflow: hidden;
+      }
+
+      #folderInfo.visible { display: flex; }
+
+      #folderInfo svg { flex-shrink: 0; opacity: 0.6; }
+
+      #folderName {
+        font-family: var(--mono);
+        font-size: 0.8rem;
+        color: var(--text);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
     </style>
   </head>
   <body>
@@ -330,6 +356,12 @@
           Wybierz folder z PDF
         </button>
         <button type="button" class="btn-secondary" id="btnStop" disabled>Przerwij batch</button>
+        <div id="folderInfo" aria-live="polite" aria-label="Wybrany folder">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+          </svg>
+          <span id="folderName"></span>
+        </div>
         <div class="options-row" role="group" aria-label="Opcje skanowania folderu">
           <label>
             <input type="checkbox" id="chkRecurse" />

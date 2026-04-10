@@ -27,6 +27,8 @@ const el = {
   status: document.getElementById("status"),
   prog: document.getElementById("prog"),
   results: document.getElementById("results"),
+  folderInfo: document.getElementById("folderInfo"),
+  folderName: document.getElementById("folderName"),
   btnDir: document.getElementById("btnDir"),
   btnStop: document.getElementById("btnStop"),
   chkRecurse: document.getElementById("chkRecurse"),
@@ -47,6 +49,18 @@ function setBatchFormDisabled(disabled) {
 
 const STATUS_IDLE = "Oczekuję na start.";
 const LS_OCR_CONF_MIN = "ocr_proto_conf_min";
+const LS_RECURSE = "ocr_proto_recurse";
+
+(function initRecurseUi() {
+  const chk = el.chkRecurse;
+  if (!chk) return;
+  try {
+    if (localStorage.getItem(LS_RECURSE) === "1") chk.checked = true;
+  } catch { /* ignore */ }
+  chk.addEventListener("change", () => {
+    try { localStorage.setItem(LS_RECURSE, chk.checked ? "1" : "0"); } catch { /* ignore */ }
+  });
+})();
 
 (function initOcrThresholdUi() {
   const inp = el.inpOcrMin;
@@ -99,6 +113,18 @@ window.addEventListener("pagehide", () => {
 
 function setStatus(text) {
   el.status.textContent = text;
+}
+
+/**
+ * @param {string} name  Nazwa folderu
+ * @param {number | null} [count]  Liczba znalezionych plików PDF (null = jeszcze nieznana)
+ */
+function showFolderInfo(name, count = null) {
+  if (el.folderName) {
+    el.folderName.textContent =
+      count != null ? `${name}  —  ${count} plik${count === 1 ? "" : count < 5 ? "i" : "ów"} PDF` : name;
+  }
+  if (el.folderInfo) el.folderInfo.classList.add("visible");
 }
 
 /**
@@ -450,31 +476,36 @@ async function runQueue(jobs, dirHandle) {
 
     counts.aborted = batchAborted;
 
-    const blob = await mergeAndBuildWorkbookBlob(dirHandle, batchDate, batchRows);
-    if (dirHandle) {
-      await writeWorkbookToDirectory(dirHandle, batchDate, blob);
-      for (const m of pendingMoves) {
-        try {
-          const sub = await dirHandle.getDirectoryHandle(m.dest, { create: true });
-          await m.handle.move(sub, m.targetName);
-        } catch {
-          counts.moveErr++;
-        }
-      }
-      setStatus(
-        batchAborted
-          ? `Przerwano. Zapisano częściowy wynik_${batchDate}.xlsx.`
-          : `Gotowe. Zapisano wynik_${batchDate}.xlsx; PDF przeniesione do done / problematyczne.`
-      );
+    if (batchRows.length === 0) {
+      setStatus(batchAborted ? "Przerwano — brak przetworzonych plików." : "Brak wierszy do zapisania.");
+      showResults(counts);
     } else {
-      downloadBlob(blob, `wynik_${batchDate}.xlsx`);
-      setStatus(
-        batchAborted
-          ? `Przerwano. Pobrano częściowy wynik_${batchDate}.xlsx.`
-          : `Gotowe. Pobrano wynik_${batchDate}.xlsx (brak przenoszenia PDF w tym trybie).`
-      );
+      const blob = await mergeAndBuildWorkbookBlob(dirHandle, batchDate, batchRows);
+      if (dirHandle) {
+        await writeWorkbookToDirectory(dirHandle, batchDate, blob);
+        for (const m of pendingMoves) {
+          try {
+            const sub = await dirHandle.getDirectoryHandle(m.dest, { create: true });
+            await m.handle.move(sub, m.targetName);
+          } catch {
+            counts.moveErr++;
+          }
+        }
+        setStatus(
+          batchAborted
+            ? `Przerwano. Zapisano częściowy wynik_${batchDate}.xlsx.`
+            : `Gotowe. Zapisano wynik_${batchDate}.xlsx; PDF przeniesione do done / problematyczne.`
+        );
+      } else {
+        downloadBlob(blob, `wynik_${batchDate}.xlsx`);
+        setStatus(
+          batchAborted
+            ? `Przerwano. Pobrano częściowy wynik_${batchDate}.xlsx.`
+            : `Gotowe. Pobrano wynik_${batchDate}.xlsx (brak przenoszenia PDF w tym trybie).`
+        );
+      }
+      showResults(counts);
     }
-    showResults(counts);
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     const excelReadFail = /wczytać istniejącego pliku|nie zostały przeniesione/i.test(msg);
@@ -502,8 +533,10 @@ el.btnDir.addEventListener("click", async () => {
     try {
       /** @type {FileSystemDirectoryHandle} */
       const dir = await window.showDirectoryPicker({ mode: "readwrite" });
+      showFolderInfo(dir.name);
       const recurse = el.chkRecurse.checked;
       const jobs = await collectJobsFromDirectoryHandle(dir, recurse);
+      showFolderInfo(dir.name, jobs.length);
       await runQueue(jobs, dir);
       return;
     } catch (e) {
@@ -526,6 +559,11 @@ el.inputDir.addEventListener("change", async () => {
   if (list.length > 0 && jobs.length === 0) {
     setStatus("Brak plików .pdf (sprawdź podfoldery lub opcję „Szukaj w podfolderach”).");
     return;
+  }
+  if (list.length > 0) {
+    const rel = list[0].webkitRelativePath || "";
+    const folderName = rel.split("/")[0] || list[0].name;
+    showFolderInfo(folderName, jobs.length);
   }
   jobs.sort((a, b) => a.excelName.localeCompare(b.excelName, "pl"));
   await runQueue(jobs, null);
