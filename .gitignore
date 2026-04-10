@@ -6,3 +6,6 @@ Thumbs.db
 __pycache__/
 *.pyc
 .venv/
+
+# Lokalne PDF-y testowe (nie wersjonujemy)
+dane testowe/
