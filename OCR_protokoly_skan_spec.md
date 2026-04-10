@@ -143,10 +143,11 @@ Plik trafia do **`done`** tylko wtedy, gdy **wszystkie** pola krytyczne spełnia
 - [ ] Przykładowe skany bitowe (kilka reprezentatywnych + edge cases: niski kontrast, skos, dopiski odręczne).
 - [ ] Dokładna **długość** (i ewentualnie prefiks) dla `numer_zlecenia` i `numer_plomby` (regexy).
 - [ ] Definicja ROI na stronie (współrzędne lub proporcje względem strony A4) — po próbkach.
-- [ ] Progi **confidence** (globalne vs. per pole).
+- [x] Progi **confidence** (POC: minimalna pewność Tesseract z użytych przebiegów OCR na pliku vs próg `OCR_CONFIDENCE_MIN` w `protocol_parse.mjs`; brak warstwy tekstowej na stronie → brak progu dla tej strony).
+- [ ] Doprecyzowanie progów per pole (ROI vs pełna strona).
 - [x] Nazwa i lokalizacja pliku Excel — **§3.3** (`wynik_YYYY-MM-DD.xlsx`, folder roboczy; drugie uruchomienie: dopisanie wierszy, usunięcie starego pliku, zapis nowego).
 - [x] Czy tworzyć `done` / `problematyczne` automatycznie, jeśli nie istnieją — **tak** (POC: `getDirectoryHandle(..., { create: true })`).
-- [ ] Zachowanie przy **duplikatach** nazw plików w podfolderach.
+- [x] Zachowanie przy **duplikatach** nazw plików w podfolderach (POC: kolumna `nazwa_pliku` = ścieżka względna `pod/plik.pdf`; na dysku po przeniesieniu nazwa spłaszczona `pod__plik.pdf` w `done` / `problematyczne`).
 
 ---
 

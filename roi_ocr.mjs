@@ -66,9 +66,23 @@ function cropCanvas(source, sx, sy, sw, sh) {
 }
 
 /**
+ * @param {import('tesseract.js').Worker} worker
+ * @param {HTMLCanvasElement | OffscreenCanvas} canvas
+ * @returns {Promise<{ text: string, confidence: number }>}
+ */
+export async function recognizeCanvasWithConfidence(worker, canvas) {
+  const r = await worker.recognize(canvas);
+  const raw = typeof r.data.confidence === "number" ? r.data.confidence : NaN;
+  const confidence = Number.isFinite(raw) && raw >= 0 ? raw : 0;
+  const text = (r.data.text || "").trim();
+  return { text, confidence };
+}
+
+/**
  * @param {import('pdfjs-dist').PDFPageProxy} page
  * @param {import('tesseract.js').Worker} worker
  * @param {RoiConfig} cfg
+ * @returns {Promise<{ text: string, roiMinConfidence: number }>}
  */
 export async function ocrPage1RoiStitched(page, worker, cfg) {
   const scale = 2;
@@ -88,29 +102,33 @@ export async function ocrPage1RoiStitched(page, worker, cfg) {
   /** @param {string} key */
   async function ocrRegion(key) {
     const r = regions_norm[key];
-    if (!r) return "";
+    if (!r) return { text: "", confidence: 100 };
     const { sx, sy, sw, sh } = normRectToCanvasPixels(r, margin, w, h);
     const crop = cropCanvas(canvas, sx, sy, sw, sh);
-    const {
-      data: { text },
-    } = await worker.recognize(crop);
-    return text.trim();
+    return recognizeCanvasWithConfidence(worker, crop);
   }
 
-  const zRaw = await ocrRegion("numer_zlecenia");
-  const pRaw = await ocrRegion("przewoznik");
-  const lRaw = await ocrRegion("lista_plomb");
+  const z = await ocrRegion("numer_zlecenia");
+  const p = await ocrRegion("przewoznik");
+  const l = await ocrRegion("lista_plomb");
+  const roiMinConfidence = Math.min(z.confidence, p.confidence, l.confidence);
+
+  const zRaw = z.text;
+  const pRaw = p.text;
+  const lRaw = l.text;
 
   const zLine = /zlecenie/i.test(zRaw) ? zRaw : `Zlecenie transportowe nr: ${zRaw}`;
   const pLine = /przewoźnik/i.test(pRaw) ? pRaw : `Przewoźnik: ${pRaw}`;
   const listBlock = /lista\s+odebranych\s+plomb/i.test(lRaw) ? lRaw : `Lista odebranych plomb:\n${lRaw}`;
 
-  return [zLine, "", pLine, "", listBlock].join("\n");
+  const text = [zLine, "", pLine, "", listBlock].join("\n");
+  return { text, roiMinConfidence };
 }
 
 /**
  * @param {import('pdfjs-dist').PDFPageProxy} page
  * @param {import('tesseract.js').Worker} worker
+ * @returns {Promise<{ text: string, confidence: number }>}
  */
 export async function ocrFullPageText(page, worker) {
   const scale = 2;
@@ -121,8 +139,5 @@ export async function ocrFullPageText(page, worker) {
   canvas.width = viewport.width;
   canvas.height = viewport.height;
   await page.render({ canvasContext: ctx, viewport }).promise;
-  const {
-    data: { text },
-  } = await worker.recognize(canvas);
-  return text;
+  return recognizeCanvasWithConfidence(worker, canvas);
 }

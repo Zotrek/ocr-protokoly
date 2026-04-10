@@ -151,6 +151,58 @@
         cursor: not-allowed;
       }
 
+      .btn-secondary {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 100%;
+        margin-top: 0.65rem;
+        padding: 0.65rem 1rem;
+        font-family: var(--font);
+        font-size: 0.9rem;
+        font-weight: 600;
+        color: var(--text-muted);
+        background: var(--bg-elevated);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        cursor: pointer;
+        transition: opacity 0.15s ease, border-color 0.15s ease;
+      }
+
+      .btn-secondary:hover:not(:disabled) {
+        border-color: var(--accent-dim);
+        color: var(--text);
+      }
+
+      .btn-secondary:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+      }
+
+      .options-row {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.5rem 1rem;
+        margin-top: 0.85rem;
+        font-size: 0.88rem;
+        color: var(--text-muted);
+      }
+
+      .options-row label {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.45rem;
+        cursor: pointer;
+        user-select: none;
+      }
+
+      .options-row input[type="checkbox"] {
+        width: 1rem;
+        height: 1rem;
+        accent-color: var(--accent-dim);
+      }
+
       .btn-primary svg {
         flex-shrink: 0;
         opacity: 0.95;
@@ -239,6 +291,14 @@
           </svg>
           Wybierz folder z PDF
         </button>
+        <button type="button" class="btn-secondary" id="btnStop" disabled>Przerwij batch</button>
+        <div class="options-row" role="group" aria-label="Opcje skanowania folderu">
+          <label>
+            <input type="checkbox" id="chkRecurse" />
+            Szukaj PDF w podfolderach (pomijane: <code style="font-family: var(--mono); font-size: 0.8em">done</code>,
+            <code style="font-family: var(--mono); font-size: 0.8em">problematyczne</code>)
+          </label>
+        </div>
         <p class="hint">
           <strong>Chrome:</strong> wybór folderu z uprawnieniem do zapisu — powstanie <code style="font-family: var(--mono); font-size: 0.85em">wynik_YYYY-MM-DD.xlsx</code>, PDF trafią do
           <code style="font-family: var(--mono); font-size: 0.85em">done</code> /
@@ -262,7 +322,13 @@
     <script type="module">
       import Tesseract from "https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/+esm";
       import * as pdfjsLib from "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/+esm";
-      import { parseProtocolText, protocolReadoutQuality, pickBetterParsedKey } from "./protocol_parse.mjs";
+      import {
+        parseProtocolText,
+        protocolReadoutQuality,
+        pickBetterParsedKey,
+        protocolStructuralOk,
+        OCR_CONFIDENCE_MIN,
+      } from "./protocol_parse.mjs";
       import { loadRoiDefault, ocrPage1RoiStitched, ocrFullPageText } from "./roi_ocr.mjs";
       import {
         buildExcelRows,
@@ -279,14 +345,18 @@
         prog: document.getElementById("prog"),
         log: document.getElementById("log"),
         btnDir: document.getElementById("btnDir"),
+        btnStop: document.getElementById("btnStop"),
+        chkRecurse: document.getElementById("chkRecurse"),
         inputDir: document.getElementById("inputDir"),
       };
 
       const STATUS_IDLE = "Oczekuję na start.";
+      const SKIP_DIR_NAMES = new Set(["done", "problematyczne"]);
 
       /** @type {import('tesseract.js').Worker | null} */
       let ocrWorker = null;
       let busy = false;
+      let batchAborted = false;
 
       function setStatus(text) {
         el.status.textContent = text;
@@ -361,19 +431,25 @@
        * @param {import('./roi_ocr.mjs').RoiConfig} roiCfg
        */
       async function extractPage1WithOcr(page, worker, roiCfg) {
-        const tRoi = await ocrPage1RoiStitched(page, worker, roiCfg);
-        const pRoi = parseProtocolText(tRoi);
-        if (protocolReadoutQuality(pRoi).ok) return tRoi;
-        const tFull = await ocrFullPageText(page, worker);
-        const pFull = parseProtocolText(tFull);
-        return pickBetterParsedKey(pRoi, pFull) === "a" ? tRoi : tFull;
+        const r1 = await ocrPage1RoiStitched(page, worker, roiCfg);
+        const pRoi = parseProtocolText(r1.text);
+        if (protocolStructuralOk(pRoi)) {
+          return { text: r1.text, ocrMinConfidence: r1.roiMinConfidence };
+        }
+        const r2 = await ocrFullPageText(page, worker);
+        const pFull = parseProtocolText(r2.text);
+        const key = pickBetterParsedKey(pRoi, pFull);
+        return {
+          text: key === "a" ? r1.text : r2.text,
+          ocrMinConfidence: key === "a" ? r1.roiMinConfidence : r2.confidence,
+        };
       }
 
       /**
        * @param {File} file
        * @param {import('tesseract.js').Worker} worker
        * @param {import('./roi_ocr.mjs').RoiConfig} roiCfg
-       * @returns {Promise<{ text: string, pageSources: string[] }>}
+       * @returns {Promise<{ text: string, pageSources: string[], ocrMinConfidence: number | null }>}
        */
       async function ocrPdfFile(file, worker, roiCfg) {
         const data = new Uint8Array(await file.arrayBuffer());
@@ -381,6 +457,12 @@
         const parts = [];
         /** @type {string[]} */
         const pageSources = [];
+        /** @type {number | null} */
+        let ocrMinConfidence = null;
+        function noteOcrConf(c) {
+          if (c == null || !Number.isFinite(c)) return;
+          ocrMinConfidence = ocrMinConfidence == null ? c : Math.min(ocrMinConfidence, c);
+        }
         for (let p = 1; p <= pdf.numPages; p++) {
           setStatus(`${file.name}: strona ${p}/${pdf.numPages}`);
           const page = await pdf.getPage(p);
@@ -391,17 +473,21 @@
             nativeLen === 0 || (p === 1 && !looksLikeProtocolText(text));
           if (ocrNeeded) {
             if (p === 1) {
-              text = await extractPage1WithOcr(page, worker, roiCfg);
+              const r = await extractPage1WithOcr(page, worker, roiCfg);
+              text = r.text;
+              noteOcrConf(r.ocrMinConfidence);
               source = "OCR str.1 (ROI, ewentualnie pełna strona)";
             } else {
-              text = await ocrFullPageText(page, worker);
+              const r = await ocrFullPageText(page, worker);
+              text = r.text;
+              noteOcrConf(r.confidence);
               source = "OCR (skan lub brak tekstu)";
             }
           }
           parts.push(text);
           pageSources.push(source);
         }
-        return { text: parts.join("\n\n"), pageSources };
+        return { text: parts.join("\n\n"), pageSources, ocrMinConfidence };
       }
 
       function localDateYmd(d = new Date()) {
@@ -421,8 +507,65 @@
       }
 
       /**
-       * @typedef {{ name: string, getFile: () => Promise<File>, handle?: FileSystemFileHandle | null }} PdfJob
+       * @typedef {{
+       *   excelName: string,
+       *   moveTargetName: string,
+       *   getFile: () => Promise<File>,
+       *   handle?: FileSystemFileHandle | null
+       * }} PdfJob
        */
+
+      /**
+       * @param {FileSystemDirectoryHandle} root
+       * @param {boolean} recurse
+       * @returns {Promise<PdfJob[]>}
+       */
+      async function collectJobsFromDirectoryHandle(root, recurse) {
+        /** @type {PdfJob[]} */
+        const jobs = [];
+
+        /**
+         * @param {FileSystemDirectoryHandle} dh
+         * @param {string} prefix
+         */
+        async function walk(dh, prefix) {
+          for await (const [entName, handle] of dh.entries()) {
+            const rel = prefix ? `${prefix}/${entName}` : entName;
+            if (handle.kind === "directory") {
+              if (!recurse) continue;
+              if (SKIP_DIR_NAMES.has(entName)) continue;
+              await walk(handle, rel);
+            } else if (handle.kind === "file" && entName.toLowerCase().endsWith(".pdf")) {
+              const excelName = rel.replace(/\\/g, "/");
+              const moveTargetName = excelName.includes("/")
+                ? excelName.replace(/\//g, "__")
+                : excelName;
+              jobs.push({
+                excelName,
+                moveTargetName,
+                handle,
+                getFile: () => handle.getFile(),
+              });
+            }
+          }
+        }
+
+        if (recurse) {
+          await walk(root, "");
+        } else {
+          for await (const [entName, handle] of root.entries()) {
+            if (handle.kind !== "file" || !entName.toLowerCase().endsWith(".pdf")) continue;
+            jobs.push({
+              excelName: entName,
+              moveTargetName: entName,
+              handle,
+              getFile: () => handle.getFile(),
+            });
+          }
+        }
+        jobs.sort((a, b) => a.excelName.localeCompare(b.excelName, "pl"));
+        return jobs;
+      }
 
       /**
        * @param {PdfJob[]} jobs
@@ -435,7 +578,9 @@
           return;
         }
         busy = true;
+        batchAborted = false;
         el.btnDir.disabled = true;
+        el.btnStop.disabled = false;
         el.log.textContent = "";
         el.prog.max = jobs.length;
         el.prog.value = 0;
@@ -449,12 +594,14 @@
               setStatus("Wymagana zgoda na zapis w folderze (read/write).");
               busy = false;
               el.btnDir.disabled = false;
+              el.btnStop.disabled = true;
               return;
             }
           } catch {
             setStatus("Nie udało się uzyskać zgody na zapis do folderu.");
             busy = false;
             el.btnDir.disabled = false;
+            el.btnStop.disabled = true;
             return;
           }
         }
@@ -462,22 +609,38 @@
         const roiCfg = await loadRoiDefault("");
         /** @type {Record<string, string>[]} */
         const batchRows = [];
-        /** @type {{ handle: FileSystemFileHandle, dest: string, name: string }[]} */
+        /** @type {{ handle: FileSystemFileHandle, dest: string, targetName: string }[]} */
         const pendingMoves = [];
 
         try {
           const worker = await ensureOcrWorker();
           for (let i = 0; i < jobs.length; i++) {
+            if (batchAborted) {
+              appendLog("\n── Przerwano przez użytkownika ──\n");
+              break;
+            }
             const job = jobs[i];
             try {
               const file = await job.getFile();
-              const { text: fullText, pageSources } = await ocrPdfFile(file, worker, roiCfg);
-              appendLog(`═══ ${job.name} ═══\n`);
+              const { text: fullText, pageSources, ocrMinConfidence } = await ocrPdfFile(
+                file,
+                worker,
+                roiCfg
+              );
+              appendLog(`═══ ${job.excelName} ═══\n`);
               pageSources.forEach((src, idx) => {
                 appendLog(`  strona ${idx + 1}: ${src}\n`);
               });
+              if (ocrMinConfidence != null) {
+                appendLog(
+                  `  OCR min. pewność (Tesseract): ${Math.round(ocrMinConfidence)} (próg ${OCR_CONFIDENCE_MIN})\n`
+                );
+              }
               const parsed = parseProtocolText(fullText);
-              const quality = protocolReadoutQuality(parsed);
+              const quality =
+                ocrMinConfidence != null
+                  ? protocolReadoutQuality(parsed, { ocrMinConfidence })
+                  : protocolReadoutQuality(parsed);
               appendLog(
                 `── Pola (parser) ──\n` +
                   `zlecenie: ${parsed.numer_zlecenia || "—"}\n` +
@@ -488,16 +651,24 @@
               );
               const preview = fullText.slice(0, 2500);
               appendLog(`── Pełny tekst (fragment) ──\n${preview}${fullText.length > 2500 ? "\n… [ucięto]\n" : "\n"}\n`);
-              batchRows.push(...buildExcelRows(job.name, parsed, quality));
+              batchRows.push(...buildExcelRows(job.excelName, parsed, quality));
               if (job.handle && dirHandle) {
-                pendingMoves.push({ handle: job.handle, dest: quality.destSubfolder, name: job.name });
+                pendingMoves.push({
+                  handle: job.handle,
+                  dest: quality.destSubfolder,
+                  targetName: job.moveTargetName,
+                });
               }
             } catch (err) {
               const msg = err instanceof Error ? err.message : String(err);
-              appendLog(`═══ ${job.name} ═══\nBŁĄD: ${msg}\n\n`);
-              batchRows.push(...buildRowsForError(job.name, `blad_przetwarzania: ${msg}`));
+              appendLog(`═══ ${job.excelName} ═══\nBŁĄD: ${msg}\n\n`);
+              batchRows.push(...buildRowsForError(job.excelName, `blad_przetwarzania: ${msg}`));
               if (job.handle && dirHandle) {
-                pendingMoves.push({ handle: job.handle, dest: "problematyczne", name: job.name });
+                pendingMoves.push({
+                  handle: job.handle,
+                  dest: "problematyczne",
+                  targetName: job.moveTargetName,
+                });
               }
             }
             el.prog.value = i + 1;
@@ -510,16 +681,24 @@
             for (const m of pendingMoves) {
               try {
                 const sub = await dirHandle.getDirectoryHandle(m.dest, { create: true });
-                await m.handle.move(sub, m.name);
+                await m.handle.move(sub, m.targetName);
               } catch (e) {
                 const em = e instanceof Error ? e.message : String(e);
-                appendLog(`Przeniesienie ${m.name} → ${m.dest}: ${em}\n`);
+                appendLog(`Przeniesienie ${m.targetName} → ${m.dest}: ${em}\n`);
               }
             }
-            setStatus(`Gotowe. Zapisano wynik_${batchDate}.xlsx; PDF przeniesione do done / problematyczne.`);
+            setStatus(
+              batchAborted
+                ? `Przerwano. Zapisano częściowy wynik_${batchDate}.xlsx (jeśli były przetworzone pliki).`
+                : `Gotowe. Zapisano wynik_${batchDate}.xlsx; PDF przeniesione do done / problematyczne.`
+            );
           } else {
             downloadBlob(blob, `wynik_${batchDate}.xlsx`);
-            setStatus(`Gotowe. Pobrano wynik_${batchDate}.xlsx (brak przenoszenia PDF w tym trybie).`);
+            setStatus(
+              batchAborted
+                ? `Przerwano. Pobrano częściowy wynik_${batchDate}.xlsx.`
+                : `Gotowe. Pobrano wynik_${batchDate}.xlsx (brak przenoszenia PDF w tym trybie).`
+            );
           }
         } catch (e) {
           const msg = e instanceof Error ? e.message : String(e);
@@ -528,8 +707,13 @@
         } finally {
           busy = false;
           el.btnDir.disabled = false;
+          el.btnStop.disabled = true;
         }
       }
+
+      el.btnStop.addEventListener("click", () => {
+        if (busy) batchAborted = true;
+      });
 
       el.btnDir.addEventListener("click", async () => {
         const fsa = typeof window.showDirectoryPicker === "function";
@@ -537,17 +721,8 @@
           try {
             /** @type {FileSystemDirectoryHandle} */
             const dir = await window.showDirectoryPicker({ mode: "readwrite" });
-            /** @type {PdfJob[]} */
-            const jobs = [];
-            for await (const [name, handle] of dir.entries()) {
-              if (handle.kind !== "file" || !name.toLowerCase().endsWith(".pdf")) continue;
-              jobs.push({
-                name,
-                handle,
-                getFile: () => handle.getFile(),
-              });
-            }
-            jobs.sort((a, b) => a.name.localeCompare(b.name, "pl"));
+            const recurse = el.chkRecurse.checked;
+            const jobs = await collectJobsFromDirectoryHandle(dir, recurse);
             await runQueue(jobs, dir);
             return;
           } catch (e) {
@@ -565,22 +740,29 @@
       el.inputDir.addEventListener("change", async () => {
         const list = el.inputDir.files ? Array.from(el.inputDir.files) : [];
         el.inputDir.value = "";
-        const pdfs = list.filter((f) => {
-          if (!f.name.toLowerCase().endsWith(".pdf")) return false;
-          const rel = f.webkitRelativePath || f.name;
-          return !rel.includes("/") && !rel.includes("\\");
-        });
-        if (list.length > 0 && pdfs.length === 0) {
-          setStatus("W wybranym folderze nie znaleziono plików .pdf (lub są tylko w podfolderach).");
+        const recurse = el.chkRecurse.checked;
+        /** @type {PdfJob[]} */
+        const jobs = [];
+        for (const f of list) {
+          if (!f.name.toLowerCase().endsWith(".pdf")) continue;
+          const rel = (f.webkitRelativePath || f.name).replace(/\\/g, "/");
+          const segments = rel.split("/");
+          if (SKIP_DIR_NAMES.has(segments[0])) continue;
+          if (!recurse && segments.length > 1) continue;
+          const excelName = rel;
+          const moveTargetName = excelName.includes("/") ? excelName.replace(/\//g, "__") : excelName;
+          jobs.push({
+            excelName,
+            moveTargetName,
+            handle: null,
+            getFile: async () => f,
+          });
+        }
+        if (list.length > 0 && jobs.length === 0) {
+          setStatus("Brak plików .pdf (sprawdź podfoldery lub opcję „Szukaj w podfolderach”).");
           return;
         }
-        pdfs.sort((a, b) => a.name.localeCompare(b.name, "pl"));
-        /** @type {PdfJob[]} */
-        const jobs = pdfs.map((f) => ({
-          name: f.name,
-          handle: null,
-          getFile: async () => f,
-        }));
+        jobs.sort((a, b) => a.excelName.localeCompare(b.excelName, "pl"));
         await runQueue(jobs, null);
       });
     </script>

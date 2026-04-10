@@ -13,6 +13,9 @@ const RE_UWAGI = /^Uwagi\s*:/im;
 /** 15 cyfr jak w próbkach; na produkcji doprecyzować stałą długość */
 const RE_PLOMBA_WIERSZ = /^\s*(\d+)\.\s*(\d{12,18})\s*$/;
 
+/** Średnia pewność Tesseract (0–100); poniżej → problematyczne (spec §4). */
+export const OCR_CONFIDENCE_MIN = 55;
+
 /**
  * @param {string} raw
  * @returns {ProtocolFields}
@@ -70,16 +73,32 @@ export function isPlombaFormatSample(numer) {
 }
 
 /**
- * Kwalifikacja do folderu done / problematyczne i treść kolumny Uwagi_odczyt (spec §3–4).
+ * Poprawność pól (bez progu confidence OCR) — używane przy wyborze ROI vs pełna strona.
  * @param {ProtocolFields} parsed
  */
-export function protocolReadoutQuality(parsed) {
+export function protocolStructuralOk(parsed) {
+  if (!parsed.numer_zlecenia?.trim()) return false;
+  if (!parsed.przewoznik?.trim()) return false;
+  if (parsed.plomby.length === 0) return false;
+  return parsed.plomby.every(isPlombaFormatSample);
+}
+
+/**
+ * Kwalifikacja do folderu done / problematyczne i treść kolumny Uwagi_odczyt (spec §3–4).
+ * @param {ProtocolFields} parsed
+ * @param {{ ocrMinConfidence?: number | null }} [meta]
+ */
+export function protocolReadoutQuality(parsed, meta = {}) {
   const issues = [];
   if (!parsed.numer_zlecenia?.trim()) issues.push("brak_numeru_zlecenia");
   if (!parsed.przewoznik?.trim()) issues.push("brak_przewoznika");
   if (parsed.plomby.length === 0) issues.push("brak_plomb");
   const badPlomby = parsed.plomby.filter((p) => !isPlombaFormatSample(p));
   if (badPlomby.length) issues.push("plomba_format");
+  const oc = meta.ocrMinConfidence;
+  if (oc != null && Number.isFinite(oc) && oc < OCR_CONFIDENCE_MIN) {
+    issues.push(`niski_confidence_ocr(${Math.round(oc)})`);
+  }
   const ok = issues.length === 0;
   return {
     ok,
@@ -94,10 +113,10 @@ export function protocolReadoutQuality(parsed) {
  * @returns {"a" | "b"}
  */
 export function pickBetterParsedKey(a, b) {
-  const qa = protocolReadoutQuality(a);
-  const qb = protocolReadoutQuality(b);
-  if (qa.ok && !qb.ok) return "a";
-  if (!qa.ok && qb.ok) return "b";
+  const sa = protocolStructuralOk(a);
+  const sb = protocolStructuralOk(b);
+  if (sa && !sb) return "a";
+  if (!sa && sb) return "b";
   const score = (p) =>
     (p.numer_zlecenia ? 4 : 0) +
     (p.przewoznik ? 4 : 0) +
