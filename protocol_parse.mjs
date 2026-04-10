@@ -86,7 +86,7 @@ export function protocolStructuralOk(parsed) {
 /**
  * Kwalifikacja do folderu done / problematyczne i treść kolumny Uwagi_odczyt (spec §3–4).
  * @param {ProtocolFields} parsed
- * @param {{ ocrMinConfidence?: number | null }} [meta]
+ * @param {{ ocrMinConfidence?: number | null, confidenceMin?: number }} [meta]
  */
 export function protocolReadoutQuality(parsed, meta = {}) {
   const issues = [];
@@ -96,7 +96,11 @@ export function protocolReadoutQuality(parsed, meta = {}) {
   const badPlomby = parsed.plomby.filter((p) => !isPlombaFormatSample(p));
   if (badPlomby.length) issues.push("plomba_format");
   const oc = meta.ocrMinConfidence;
-  if (oc != null && Number.isFinite(oc) && oc < OCR_CONFIDENCE_MIN) {
+  const threshold =
+    typeof meta.confidenceMin === "number" && Number.isFinite(meta.confidenceMin)
+      ? meta.confidenceMin
+      : OCR_CONFIDENCE_MIN;
+  if (oc != null && Number.isFinite(oc) && oc < threshold) {
     issues.push(`niski_confidence_ocr(${Math.round(oc)})`);
   }
   const ok = issues.length === 0;

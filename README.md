@@ -9,3 +9,5 @@ Odczyt skanów protokołów (OCR) w przeglądarce — osobny projekt względem `
 - **Kalibracja ROI (str. 1, `pdftotext -tsv`):** uruchom `python3 tools/calibrate_layout.py` → plik [`calibration/roi_hints.json`](calibration/roi_hints.json)
 
 Uruchomienie lokalne: z tego katalogu `python3 -m http.server 8765`, potem w Chrome `http://127.0.0.1:8765`.
+
+Testy bez PDF (parser + normalizacja wierszy Excel): `node tests/protocol_parse_selftest.mjs`

@@ -203,6 +203,17 @@
         accent-color: var(--accent-dim);
       }
 
+      .options-row input[type="number"] {
+        width: 3.25rem;
+        padding: 0.25rem 0.35rem;
+        font-family: var(--mono);
+        font-size: 0.85rem;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        background: var(--bg-elevated);
+        color: var(--text);
+      }
+
       .btn-primary svg {
         flex-shrink: 0;
         opacity: 0.95;
@@ -298,6 +309,10 @@
             Szukaj PDF w podfolderach (pomijane: <code style="font-family: var(--mono); font-size: 0.8em">done</code>,
             <code style="font-family: var(--mono); font-size: 0.8em">problematyczne</code>)
           </label>
+          <label title="Minimalna średnia pewność Tesseract (0–100); poniżej → problematyczne przy OCR">
+            Próg OCR
+            <input type="number" id="inpOcrMin" min="0" max="100" step="1" value="55" />
+          </label>
         </div>
         <p class="hint">
           <strong>Chrome:</strong> wybór folderu z uprawnieniem do zapisu — powstanie <code style="font-family: var(--mono); font-size: 0.85em">wynik_YYYY-MM-DD.xlsx</code>, PDF trafią do
@@ -347,11 +362,40 @@
         btnDir: document.getElementById("btnDir"),
         btnStop: document.getElementById("btnStop"),
         chkRecurse: document.getElementById("chkRecurse"),
+        inpOcrMin: document.getElementById("inpOcrMin"),
         inputDir: document.getElementById("inputDir"),
       };
 
       const STATUS_IDLE = "Oczekuję na start.";
       const SKIP_DIR_NAMES = new Set(["done", "problematyczne"]);
+      const LS_OCR_CONF_MIN = "ocr_proto_conf_min";
+
+      (function initOcrThresholdUi() {
+        const inp = el.inpOcrMin;
+        if (!inp) return;
+        try {
+          const s = localStorage.getItem(LS_OCR_CONF_MIN);
+          if (s != null) {
+            const n = Number(s);
+            if (Number.isFinite(n) && n >= 0 && n <= 100) inp.value = String(Math.round(n));
+          }
+        } catch {
+          /* ignore */
+        }
+        inp.addEventListener("change", () => {
+          try {
+            localStorage.setItem(LS_OCR_CONF_MIN, inp.value);
+          } catch {
+            /* ignore */
+          }
+        });
+      })();
+
+      function readConfidenceMinFromUi() {
+        const n = Number(el.inpOcrMin?.value);
+        if (Number.isFinite(n) && n >= 0 && n <= 100) return Math.round(n);
+        return OCR_CONFIDENCE_MIN;
+      }
 
       /** @type {import('tesseract.js').Worker | null} */
       let ocrWorker = null;
@@ -585,6 +629,12 @@
         el.prog.max = jobs.length;
         el.prog.value = 0;
         const batchDate = localDateYmd();
+        const confidenceMin = readConfidenceMinFromUi();
+        try {
+          localStorage.setItem(LS_OCR_CONF_MIN, String(confidenceMin));
+        } catch {
+          /* ignore */
+        }
         setStatus(`Znaleziono ${jobs.length} plik(ów). Start…`);
 
         if (dirHandle) {
@@ -633,14 +683,14 @@
               });
               if (ocrMinConfidence != null) {
                 appendLog(
-                  `  OCR min. pewność (Tesseract): ${Math.round(ocrMinConfidence)} (próg ${OCR_CONFIDENCE_MIN})\n`
+                  `  OCR min. pewność (Tesseract): ${Math.round(ocrMinConfidence)} (próg ${confidenceMin})\n`
                 );
               }
               const parsed = parseProtocolText(fullText);
-              const quality =
-                ocrMinConfidence != null
-                  ? protocolReadoutQuality(parsed, { ocrMinConfidence })
-                  : protocolReadoutQuality(parsed);
+              const quality = protocolReadoutQuality(parsed, {
+                ocrMinConfidence: ocrMinConfidence ?? undefined,
+                confidenceMin,
+              });
               appendLog(
                 `── Pola (parser) ──\n` +
                   `zlecenie: ${parsed.numer_zlecenia || "—"}\n` +

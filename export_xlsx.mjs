@@ -8,6 +8,36 @@ import { isPlombaFormatSample } from "./protocol_parse.mjs";
 
 let xlsxModulePromise = null;
 
+/** Kolejność kolumn w arkuszu (§3.1). */
+export const EXCEL_HEADER = /** @type {const} */ ([
+  "nazwa_pliku",
+  "numer_zlecenia",
+  "przewoznik",
+  "numer_plomby",
+  "Uwagi_odczyt",
+]);
+
+/**
+ * Ujednolicenie kluczy z istniejącego .xlsx (spacje, wielkość liter, literówki nagłówków).
+ * @param {Record<string, unknown>} raw
+ * @returns {Record<string, string>}
+ */
+export function normalizeExcelRow(raw) {
+  /** @type {Record<string, string>} */
+  const flat = {};
+  for (const [k, v] of Object.entries(raw)) {
+    const nk = String(k).trim().toLowerCase().replace(/\s+/g, "_");
+    flat[nk] = String(v ?? "");
+  }
+  return {
+    nazwa_pliku: flat.nazwa_pliku ?? "",
+    numer_zlecenia: flat.numer_zlecenia ?? "",
+    przewoznik: flat.przewoznik ?? "",
+    numer_plomby: flat.numer_plomby ?? flat.numer_plomb ?? "",
+    Uwagi_odczyt: flat.uwagi_odczyt ?? "",
+  };
+}
+
 export function loadXlsx() {
   if (!xlsxModulePromise) {
     xlsxModulePromise = import("https://cdn.sheetjs.com/xlsx-0.20.3/package/xlsx.mjs");
@@ -81,9 +111,10 @@ export async function mergeAndBuildWorkbookBlob(dirHandle, dateYmd, newRows) {
       existing = [];
     }
   }
-  const merged = existing.concat(newRows);
+  const existingNorm = existing.map((row) => normalizeExcelRow(/** @type {Record<string, unknown>} */ (row)));
+  const merged = existingNorm.concat(newRows);
   const ws = XLSX.utils.json_to_sheet(merged, {
-    header: ["nazwa_pliku", "numer_zlecenia", "przewoznik", "numer_plomby", "Uwagi_odczyt"],
+    header: [...EXCEL_HEADER],
   });
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Wynik");
