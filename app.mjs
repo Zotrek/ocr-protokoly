@@ -651,10 +651,21 @@ el.inputDir.addEventListener("change", async () => {
   const jobs = [];
   for (const f of list) {
     if (!f.name.toLowerCase().endsWith(".pdf")) continue;
-    const rel = (f.webkitRelativePath || f.name).replace(/\\/g, "/");
-    const segments = rel.split("/");
-    if (SKIP_DIR_NAMES.has(segments[0])) continue;
-    if (!recurse && segments.length > 1) continue;
+    const relFull = (f.webkitRelativePath || f.name)
+      .replace(/\\/g, "/")
+      .replace(/^\/+|\/+$/g, "");
+    if (!relFull) continue;
+    const segments = relFull.split("/").filter((s) => s.length > 0);
+    if (segments.length === 0) continue;
+    if (segments.slice(0, -1).some((dir) => SKIP_DIR_NAMES.has(dir))) continue;
+    /**
+     * `webkitRelativePath` zwykle zaczyna się od nazwy wybranego folderu (`Folder/plik.pdf`).
+     * Nie traktuj tego jak „podfolderu”: ścieżka względna do Excela = bez tego pierwszego segmentu
+     * (jak przy File System Access w Chrome — tylko `plik.pdf` w korzeniu).
+     */
+    const inner = segments.length > 1 ? segments.slice(1) : segments;
+    const rel = inner.join("/");
+    if (!recurse && inner.length > 1) continue;
     const excelName = rel;
     const moveTargetName = excelName.includes("/") ? excelName.replace(/\//g, "__") : excelName;
     jobs.push({
