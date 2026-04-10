@@ -220,21 +220,6 @@
         margin: 0;
       }
 
-      .foot {
-        margin-top: 1.5rem;
-        font-size: 0.8rem;
-        color: var(--text-muted);
-        line-height: 1.5;
-      }
-
-      .foot code {
-        font-family: var(--mono);
-        font-size: 0.78em;
-        padding: 0.1em 0.35em;
-        background: var(--bg-elevated);
-        border-radius: 4px;
-        border: 1px solid var(--border);
-      }
     </style>
   </head>
   <body>
@@ -258,7 +243,7 @@
       </section>
 
       <section class="panel status-row">
-        <div id="status">Gotowe.</div>
+        <div id="status" aria-live="polite">Oczekuję na start.</div>
         <progress id="prog" max="100" value="0"></progress>
       </section>
 
@@ -266,12 +251,6 @@
         <h2>Podgląd rozpoznanego tekstu</h2>
         <pre id="log"></pre>
       </section>
-
-      <footer class="foot">
-        Wymagane <code>HTTPS</code> lub <code>http://127.0.0.1</code> — nie działa z <code>file://</code>.
-        Docelowo zalecany <strong>Google Chrome</strong> (Windows): pełna obsługa wyboru folderu i późniejszy zapis wyników.
-        W Firefoxie (np. Linux) po kliknięciu otwiera się systemowe okno wyboru folderu.
-      </footer>
     </div>
 
     <input type="file" id="inputDir" multiple hidden webkitdirectory directory />
@@ -290,6 +269,8 @@
         btnDir: document.getElementById("btnDir"),
         inputDir: document.getElementById("inputDir"),
       };
+
+      const STATUS_IDLE = "Oczekuję na start.";
 
       /** @type {import('tesseract.js').Worker | null} */
       let ocrWorker = null;
@@ -314,7 +295,6 @@
             }
           },
         });
-        setStatus("OCR gotowy.");
         return ocrWorker;
       }
 
@@ -378,7 +358,7 @@
             el.prog.value = i + 1;
             setStatus(`Przetworzono ${i + 1} / ${list.length}`);
           }
-          setStatus(`Zakończono: ${list.length} plik(ów).`);
+          setStatus("Gotowe.");
         } finally {
           busy = false;
           el.btnDir.disabled = false;
@@ -401,7 +381,7 @@
             return;
           } catch (e) {
             if (e instanceof Error && e.name === "AbortError") {
-              setStatus("Anulowano wybór folderu.");
+              setStatus(STATUS_IDLE);
               return;
             }
             console.warn(e);
