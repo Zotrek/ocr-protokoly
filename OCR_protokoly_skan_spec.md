@@ -14,7 +14,7 @@ Aplikacja uruchamiana przez klienta w **Google Chrome (Windows 11)**:
 1. Klient wskazuje **folder roboczy** zawierający skany PDF uzupełnionych i podpisanych protokołów.
 2. Dla każdego pliku PDF (kolejno, jeden po drugim) wykonywany jest **OCR** (stały layout strony).
 3. Wyciągane są pola: **numer zlecenia**, **numery plomb (PLB)** — każda plomba **osobny wiersz** w Excelu, **nazwa przewoźnika** (transportującego).
-4. Wynik zapisywany jest do **jednego pliku Excel (.xlsx)** w obrębie wybranego folderu (lub w podfolderze wyników — do decyzji przy implementacji).
+4. Wynik zapisywany jest do pliku Excel (.xlsx) wg **§3.3** (nazwa, lokalizacja, wielokrotne uruchomienia tego samego dnia).
 5. Pliki PDF po przetworzeniu trafiają do:
    - **`done`** — gdy odczyt uznany za w pełni poprawny (bez problemów wg reguł poniżej);
    - **`problematyczne`** — gdy wystąpiły problemy z odczytem (niska pewność, brak zgodności z formatem, podejrzenie dopisków odręcznych w obszarze pola itp.).
@@ -36,7 +36,7 @@ Szczegóły technologiczne (hosting vs. paczka lokalna) — sekcja 6.
 
 ## 3. Model danych w Excelu (długi format)
 
-Jedna tabela we wszystkich plikach z danego uruchomienia (jeden arkusz lub jeden plik na batch — do decyzji; domyślnie: **jeden plik wynikowy na uruchomienie**).
+Jeden arkusz roboczy z ustalonymi kolumnami (§3.1). **Plik wynikowy jest wspólny dla całego dnia kalendarzowego** użytkownika — patrz §3.3.
 
 ### 3.1. Kolumny
 
@@ -60,6 +60,21 @@ Kolejność kolumn może być ustalona przy implementacji; powyższa lista jest 
 **Zasada uzgodniona:** wiersz (lub cały plik) wymagający weryfikacji człowieka → plik PDF do folderu **`problematyczne`**, nawet jeśli część pól jest poprawna.
 
 **Doprecyzowanie do implementacji:** czy przy częściowym sukcesie (np. 3 plomby OK, 1 niepewna) jeden wiersz ma `Uwagi_odczyt` z adnotacją tylko przy problematycznej plombie, a plik i tak idzie do `problematyczne` — **tak**, spójnie z audytem: folder `problematyczne` + adnotacje w wierszach dotkniętych problemem.
+
+### 3.3. Nazwa pliku Excel, lokalizacja, drugie uruchomienie tego samego dnia
+
+- **Wzorzec nazwy:** `wynik_YYYY-MM-DD.xlsx`  
+  Przykład: `wynik_2026-04-10.xlsx`.  
+  Data **YYYY-MM-DD** = **lokalna data kalendarzowa** u klienta (strefa czasowa przeglądarki) w momencie **rozpoczęcia** danego uruchomienia batcha (lub ustalonego punktu startu przetwarzania — do jednej linii w kodzie).
+- **Lokalizacja:** **wybrany folder roboczy** (ten sam, w którym są / były PDF-y do obróbki), chyba że później uzgodnimy osobny podfolder (np. `wynik`).
+- **Pierwsze uruchomienie danego dnia:** jeśli pliku `wynik_YYYY-MM-DD.xlsx` **nie ma** — tworzymy **nowy** plik z wierszami z bieżącego batcha.
+- **Kolejne uruchomienie tego samego dnia**, gdy plik **już istnieje** w wybranym folderze:
+  1. **Wczytać** istniejący skoroszyt (dotychczasowe wiersze).
+  2. **Dopisać** na końcu tabeli wiersze z **bieżącego** uruchomienia (nowe PDF-y z tej sesji).
+  3. **Usunąć** stary plik z dysku.
+  4. **Zapisać** nowy plik o **tej samej nazwie** `wynik_YYYY-MM-DD.xlsx` zawierający **połączoną** treść (stare + nowe wiersze).
+
+Cel kroku 3–4: jedna spójna nazwa dziennie i atomowa zamiana pliku (bez pozostawiania dwóch wersji). Przy błędzie odczytu istniejącego pliku (uszkodzony .xlsx) — **komunikat błędu** i **przerwanie zapisu** lub reguła awaryjna do ustalenia przy implementacji.
 
 ---
 
@@ -128,7 +143,7 @@ Plik trafia do **`done`** tylko wtedy, gdy **wszystkie** pola krytyczne spełnia
 - [ ] Dokładna **długość** (i ewentualnie prefiks) dla `numer_zlecenia` i `numer_plomby` (regexy).
 - [ ] Definicja ROI na stronie (współrzędne lub proporcje względem strony A4) — po próbkach.
 - [ ] Progi **confidence** (globalne vs. per pole).
-- [ ] Nazwa i lokalizacja pliku Excel (katalog główny vs. podfolder `wynik`).
+- [x] Nazwa i lokalizacja pliku Excel — **§3.3** (`wynik_YYYY-MM-DD.xlsx`, folder roboczy; drugie uruchomienie: dopisanie wierszy, usunięcie starego pliku, zapis nowego).
 - [ ] Czy tworzyć `done` / `problematyczne` automatycznie, jeśli nie istnieją (zakładamy **tak**).
 - [ ] Zachowanie przy **duplikatach** nazw plików w podfolderach.
 
@@ -141,3 +156,4 @@ Plik trafia do **`done`** tylko wtedy, gdy **wszystkie** pola krytyczne spełnia
 | 2026-04-10 | Pierwsza wersja specyfikacji po uzgodnieniach (Excel: powtórzenia zlecenie/przewoźnik, `Uwagi_odczyt` z `ok`, `nazwa_pliku`, progress, done/problematyczne, skany + stały layout + cyfry). |
 | 2026-04-10 | Przeniesienie do osobnego folderu projektu `OCR_protokoly/`; link do `arkusz-mapa/docs/SZABLON_WORD_tagi.txt`. |
 | 2026-04-10 | Sekcja 7: faza początkowa — jeden `index.html`, kolejka, jeden worker OCR; link do `HOSTING.md`. |
+| 2026-04-10 | §3.3: nazwa `wynik_YYYY-MM-DD.xlsx`, dopisywanie przy kolejnym uruchomieniu tego samego dnia (po wczytaniu: usunięcie starego pliku, zapis nowego z pełną treścią). |

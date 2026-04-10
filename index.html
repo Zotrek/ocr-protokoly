@@ -3,55 +3,278 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>OCR protokoły — POC</title>
+    <title>OCR protokołów</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
     <style>
       :root {
-        font-family: system-ui, sans-serif;
-        line-height: 1.45;
+        --bg: #0f1419;
+        --bg-elevated: #1a2332;
+        --surface: #243044;
+        --border: #334155;
+        --text: #f1f5f9;
+        --text-muted: #94a3b8;
+        --accent: #38bdf8;
+        --accent-dim: #0ea5e9;
+        --accent-glow: rgba(56, 189, 248, 0.22);
+        --success: #34d399;
+        --radius: 14px;
+        --radius-sm: 10px;
+        --shadow: 0 20px 50px rgba(0, 0, 0, 0.35);
+        --font: "DM Sans", system-ui, sans-serif;
+        --mono: "JetBrains Mono", ui-monospace, monospace;
       }
+
+      @media (prefers-color-scheme: light) {
+        :root {
+          --bg: #e8eef4;
+          --bg-elevated: #f8fafc;
+          --surface: #ffffff;
+          --border: #cbd5e1;
+          --text: #0f172a;
+          --text-muted: #64748b;
+          --accent: #0284c7;
+          --accent-dim: #0369a1;
+          --accent-glow: rgba(2, 132, 199, 0.12);
+          --shadow: 0 12px 40px rgba(15, 23, 42, 0.08);
+        }
+      }
+
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+      }
+
       body {
-        max-width: 42rem;
-        margin: 1rem auto;
-        padding: 0 1rem;
+        margin: 0;
+        min-height: 100vh;
+        font-family: var(--font);
+        font-size: 1rem;
+        line-height: 1.55;
+        color: var(--text);
+        background: var(--bg);
+        background-image: radial-gradient(ellipse 120% 80% at 50% -20%, var(--accent-glow), transparent 50%);
       }
-      #log {
-        white-space: pre-wrap;
-        background: #f4f4f5;
-        padding: 0.75rem;
-        border-radius: 8px;
-        max-height: 22rem;
-        overflow: auto;
-        font-size: 0.8rem;
+
+      .app {
+        max-width: 40rem;
+        margin: 0 auto;
+        padding: 2rem 1.25rem 3rem;
       }
+
+      .hero {
+        margin-bottom: 1.75rem;
+      }
+
+      .badge {
+        display: inline-block;
+        font-size: 0.7rem;
+        font-weight: 600;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--accent);
+        background: var(--accent-glow);
+        border: 1px solid var(--border);
+        padding: 0.2rem 0.55rem;
+        border-radius: 6px;
+        margin-bottom: 0.65rem;
+      }
+
+      h1 {
+        font-size: clamp(1.65rem, 4vw, 2rem);
+        font-weight: 700;
+        letter-spacing: -0.02em;
+        margin: 0 0 0.5rem;
+        line-height: 1.2;
+      }
+
+      .lead {
+        margin: 0;
+        color: var(--text-muted);
+        font-size: 0.95rem;
+        max-width: 36ch;
+      }
+
+      .panel {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 1.25rem 1.35rem;
+        margin-bottom: 1rem;
+        box-shadow: var(--shadow);
+      }
+
+      .panel h2 {
+        font-size: 0.85rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--text-muted);
+        margin: 0 0 0.75rem;
+      }
+
+      .btn-primary {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.6rem;
+        width: 100%;
+        padding: 0.9rem 1.25rem;
+        font-family: var(--font);
+        font-size: 1rem;
+        font-weight: 600;
+        color: #fff;
+        background: linear-gradient(165deg, var(--accent) 0%, var(--accent-dim) 100%);
+        border: none;
+        border-radius: var(--radius-sm);
+        cursor: pointer;
+        box-shadow: 0 4px 14px var(--accent-glow);
+        transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
+      }
+
+      .btn-primary:hover:not(:disabled) {
+        transform: translateY(-1px);
+        box-shadow: 0 6px 20px var(--accent-glow);
+      }
+
+      .btn-primary:active:not(:disabled) {
+        transform: translateY(0);
+      }
+
+      .btn-primary:disabled {
+        opacity: 0.55;
+        cursor: not-allowed;
+      }
+
+      .btn-primary svg {
+        flex-shrink: 0;
+        opacity: 0.95;
+      }
+
+      .hint {
+        margin: 0.85rem 0 0;
+        font-size: 0.85rem;
+        color: var(--text-muted);
+        text-align: center;
+        line-height: 1.4;
+      }
+
+      .status-row {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+      }
+
+      #status {
+        font-size: 0.9rem;
+        color: var(--text);
+        min-height: 1.4em;
+        padding: 0.65rem 0.85rem;
+        background: var(--bg-elevated);
+        border-radius: var(--radius-sm);
+        border: 1px solid var(--border);
+      }
+
       progress {
         width: 100%;
-        height: 1.25rem;
+        height: 0.45rem;
+        border: none;
+        border-radius: 999px;
+        overflow: hidden;
+        background: var(--bg-elevated);
       }
-      button {
-        margin: 0.25rem 0.5rem 0.25rem 0;
+
+      progress::-webkit-progress-bar {
+        background: var(--bg-elevated);
+        border-radius: 999px;
       }
-      .muted {
-        color: #555;
-        font-size: 0.9rem;
+
+      progress::-webkit-progress-value {
+        background: linear-gradient(90deg, var(--accent), var(--accent-dim));
+        border-radius: 999px;
+      }
+
+      progress::-moz-progress-bar {
+        background: linear-gradient(90deg, var(--accent), var(--accent-dim));
+        border-radius: 999px;
+      }
+
+      #log {
+        white-space: pre-wrap;
+        word-break: break-word;
+        font-family: var(--mono);
+        font-size: 0.75rem;
+        line-height: 1.5;
+        background: var(--bg-elevated);
+        color: var(--text);
+        padding: 1rem;
+        border-radius: var(--radius-sm);
+        border: 1px solid var(--border);
+        max-height: 22rem;
+        overflow: auto;
+        margin: 0;
+      }
+
+      .foot {
+        margin-top: 1.5rem;
+        font-size: 0.8rem;
+        color: var(--text-muted);
+        line-height: 1.5;
+      }
+
+      .foot code {
+        font-family: var(--mono);
+        font-size: 0.78em;
+        padding: 0.1em 0.35em;
+        background: var(--bg-elevated);
+        border-radius: 4px;
+        border: 1px solid var(--border);
       }
     </style>
   </head>
   <body>
-    <h1>OCR protokoły — POC</h1>
-    <p class="muted">
-      <strong>Kolejka</strong> plików PDF, <strong>jeden worker</strong> Tesseract (polski). Wymaga
-      <strong>HTTPS</strong> lub <code>http://127.0.0.1</code> — nie działa z
-      <code>file://</code>.
-    </p>
-    <p>
-      <button type="button" id="btnDir">Wybierz folder z PDF</button>
-      <button type="button" id="btnFiles">Wybierz pliki PDF…</button>
-    </p>
-    <input type="file" id="inputFiles" accept="application/pdf" multiple hidden />
-    <p id="status">Gotowe.</p>
-    <progress id="prog" max="100" value="0"></progress>
-    <h2>Podgląd tekstu (skrót pierwszej strony każdego pliku)</h2>
-    <pre id="log"></pre>
+    <div class="app">
+      <header class="hero">
+        <span class="badge">Wersja POC</span>
+        <h1>OCR protokołów</h1>
+        <p class="lead">
+          Wybierz <strong>folder</strong> z plikami PDF — przetwarzanie w kolejce, jeden silnik OCR (polski).
+        </p>
+      </header>
+
+      <section class="panel">
+        <button type="button" class="btn-primary" id="btnDir" aria-label="Wybierz folder z plikami PDF">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+          </svg>
+          Wybierz folder z PDF
+        </button>
+        <p class="hint">Przetwarzane są wyłącznie pliki <code style="font-family: var(--mono); font-size: 0.85em">.pdf</code> z tego katalogu (bez podfolderów w tym POC).</p>
+      </section>
+
+      <section class="panel status-row">
+        <div id="status">Gotowe.</div>
+        <progress id="prog" max="100" value="0"></progress>
+      </section>
+
+      <section class="panel">
+        <h2>Podgląd rozpoznanego tekstu</h2>
+        <pre id="log"></pre>
+      </section>
+
+      <footer class="foot">
+        Wymagane <code>HTTPS</code> lub <code>http://127.0.0.1</code> — nie działa z <code>file://</code>.
+        Docelowo zalecany <strong>Google Chrome</strong> (Windows): pełna obsługa wyboru folderu i późniejszy zapis wyników.
+        W Firefoxie (np. Linux) po kliknięciu otwiera się systemowe okno wyboru folderu.
+      </footer>
+    </div>
+
+    <input type="file" id="inputDir" multiple hidden webkitdirectory directory />
 
     <script type="module">
       import Tesseract from "https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/+esm";
@@ -65,8 +288,7 @@
         prog: document.getElementById("prog"),
         log: document.getElementById("log"),
         btnDir: document.getElementById("btnDir"),
-        btnFiles: document.getElementById("btnFiles"),
-        inputFiles: document.getElementById("inputFiles"),
+        inputDir: document.getElementById("inputDir"),
       };
 
       /** @type {import('tesseract.js').Worker | null} */
@@ -99,7 +321,6 @@
       /**
        * @param {File} file
        * @param {import('tesseract.js').Worker} worker
-       * @returns {Promise<string>} Pełny tekst ze wszystkich stron (dla POC)
        */
       async function ocrPdfFile(file, worker) {
         const data = new Uint8Array(await file.arrayBuffer());
@@ -131,13 +352,12 @@
         if (busy) return;
         const list = files.filter((f) => f.name.toLowerCase().endsWith(".pdf"));
         if (list.length === 0) {
-          setStatus("Brak plików PDF.");
+          setStatus("W folderze nie znaleziono plików PDF.");
           return;
         }
         list.sort((a, b) => a.name.localeCompare(b.name, "pl"));
         busy = true;
         el.btnDir.disabled = true;
-        el.btnFiles.disabled = true;
         el.log.textContent = "";
         el.prog.max = list.length;
         el.prog.value = 0;
@@ -162,41 +382,44 @@
         } finally {
           busy = false;
           el.btnDir.disabled = false;
-          el.btnFiles.disabled = false;
         }
       }
 
       el.btnDir.addEventListener("click", async () => {
-        if (!("showDirectoryPicker" in window)) {
-          setStatus("Ta przeglądarka nie obsługuje wyboru folderu. Użyj Chrome i HTTPS (lub wybierz pliki).");
-          return;
-        }
-        try {
-          /** @type {FileSystemDirectoryHandle} */
-          const dir = await window.showDirectoryPicker({ mode: "read" });
-          const files = [];
-          for await (const [, handle] of dir.entries()) {
-            if (handle.kind === "file" && handle.name.toLowerCase().endsWith(".pdf")) {
-              files.push(await handle.getFile());
+        const fsa = typeof window.showDirectoryPicker === "function";
+        if (fsa) {
+          try {
+            /** @type {FileSystemDirectoryHandle} */
+            const dir = await window.showDirectoryPicker({ mode: "read" });
+            const files = [];
+            for await (const [, handle] of dir.entries()) {
+              if (handle.kind === "file" && handle.name.toLowerCase().endsWith(".pdf")) {
+                files.push(await handle.getFile());
+              }
             }
-          }
-          await runQueue(files);
-        } catch (e) {
-          if (e instanceof Error && e.name === "AbortError") {
-            setStatus("Anulowano wybór folderu.");
+            await runQueue(files);
             return;
+          } catch (e) {
+            if (e instanceof Error && e.name === "AbortError") {
+              setStatus("Anulowano wybór folderu.");
+              return;
+            }
+            console.warn(e);
+            setStatus("Wybór folderu (File System Access) nie zadziałał — otwieram okno folderu…");
           }
-          const msg = e instanceof Error ? e.message : String(e);
-          setStatus(`Błąd: ${msg}`);
         }
+        el.inputDir.click();
       });
 
-      el.btnFiles.addEventListener("click", () => el.inputFiles.click());
-
-      el.inputFiles.addEventListener("change", async () => {
-        const files = el.inputFiles.files ? Array.from(el.inputFiles.files) : [];
-        el.inputFiles.value = "";
-        await runQueue(files);
+      el.inputDir.addEventListener("change", async () => {
+        const list = el.inputDir.files ? Array.from(el.inputDir.files) : [];
+        el.inputDir.value = "";
+        const pdfs = list.filter((f) => f.name.toLowerCase().endsWith(".pdf"));
+        if (list.length > 0 && pdfs.length === 0) {
+          setStatus("W wybranym folderze nie znaleziono plików .pdf.");
+          return;
+        }
+        await runQueue(pdfs);
       });
     </script>
   </body>
