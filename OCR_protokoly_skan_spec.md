@@ -30,7 +30,7 @@ Szczegóły technologiczne (hosting vs. paczka lokalna) — sekcja 6.
 | 1 | **Skany PDF** (nie wektorowy tekst z Worda) | Wymagany pipeline OCR + ewentualnie preprocess obrazu strony. |
 | 2 | **Stały layout** strony | Możliwe wycięcie ROI (regionów) pod zlecenie, listę plomb, przewoźnika. |
 | 3 | **Format numerów** | Zlecenie i plomby: **stała długość**, **tylko cyfry** — dokładne długości i ewentualne prefiksy **do uzupełnienia** po próbkach rzeczywistych skanów. |
-| 4 | **Przykładowe pliki** | Dostarczone później — pod kalibrację progów confidence, ROI i regexów. |
+| 4 | **Przykładowe pliki** | Folder `dane testowe/`: PDF z warstwą tekstową (eksport Word) — ten sam układ co na skanach; kalibracja ROI: `tools/calibrate_layout.py` → `calibration/roi_hints.json`. Skany bitowe — do dalszej kalibracji progów OCR. |
 
 ---
 
@@ -139,7 +139,8 @@ Plik trafia do **`done`** tylko wtedy, gdy **wszystkie** pola krytyczne spełnia
 
 ## 8. Otwarte punkty (przed implementacją)
 
-- [ ] Przykładowe skany PDF (kilka reprezentatywnych + edge cases: niski kontrast, skos, dopiski odręczne).
+- [x] Przykładowe PDF w `dane testowe/` (layout jak produkcyjny dokument; bez warstwy tekstowej w docelowych skanach).
+- [ ] Przykładowe skany bitowe (kilka reprezentatywnych + edge cases: niski kontrast, skos, dopiski odręczne).
 - [ ] Dokładna **długość** (i ewentualnie prefiks) dla `numer_zlecenia` i `numer_plomby` (regexy).
 - [ ] Definicja ROI na stronie (współrzędne lub proporcje względem strony A4) — po próbkach.
 - [ ] Progi **confidence** (globalne vs. per pole).

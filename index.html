@@ -258,6 +258,7 @@
     <script type="module">
       import Tesseract from "https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/+esm";
       import * as pdfjsLib from "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/+esm";
+      import { parseProtocolText } from "./protocol_parse.mjs";
 
       pdfjsLib.GlobalWorkerOptions.workerSrc =
         "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.worker.min.mjs";
@@ -299,30 +300,96 @@
       }
 
       /**
+       * Tekst z warstwy PDF (np. eksport Word) — bez OCR. Na skanach zwykle pusty → wtedy pełnostronicowy OCR.
+       * @param {import('pdfjs-dist').PDFPageProxy} page
+       */
+      async function extractTextNative(page) {
+        const tc = await page.getTextContent();
+        const items = tc.items
+          .filter((it) => "str" in it && it.str.trim())
+          .map((it) => {
+            const ty = it.transform[5];
+            const tx = it.transform[4];
+            return { str: it.str, tx, ty };
+          });
+        items.sort((a, b) => {
+          if (Math.abs(a.ty - b.ty) < 2.5) return a.tx - b.tx;
+          return b.ty - a.ty;
+        });
+        const lines = [];
+        let line = [];
+        let lastTy = /** @type {number | null} */ (null);
+        for (const it of items) {
+          if (lastTy !== null && Math.abs(it.ty - lastTy) > 2.5) {
+            lines.push(line.join(" "));
+            line = [];
+          }
+          line.push(it.str);
+          lastTy = it.ty;
+        }
+        if (line.length) lines.push(line.join(" "));
+        return lines.join("\n");
+      }
+
+      /** Heurystyka: czy wygląda na treść protokołu z szablonu (nie pusty / nie „śmieciowy” fragment). */
+      function looksLikeProtocolText(s) {
+        const t = s.toLowerCase();
+        return (
+          s.trim().length > 120 &&
+          t.includes("zlecenie") &&
+          t.includes("transportowe") &&
+          t.includes("przewoźnik") &&
+          t.includes("lista") &&
+          t.includes("plomb")
+        );
+      }
+
+      /**
+       * @param {import('pdfjs-dist').PDFPageProxy} page
+       * @param {import('tesseract.js').Worker} worker
+       */
+      async function ocrPageCanvas(page, worker) {
+        const scale = 2;
+        const viewport = page.getViewport({ scale });
+        const canvas = document.createElement("canvas");
+        const ctx = canvas.getContext("2d");
+        if (!ctx) throw new Error("Brak kontekstu 2D canvas");
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
+        await page.render({ canvasContext: ctx, viewport }).promise;
+        const {
+          data: { text },
+        } = await worker.recognize(canvas);
+        return text;
+      }
+
+      /**
        * @param {File} file
        * @param {import('tesseract.js').Worker} worker
+       * @returns {Promise<{ text: string, pageSources: string[] }>}
        */
       async function ocrPdfFile(file, worker) {
         const data = new Uint8Array(await file.arrayBuffer());
         const pdf = await pdfjsLib.getDocument({ data }).promise;
         const parts = [];
+        /** @type {string[]} */
+        const pageSources = [];
         for (let p = 1; p <= pdf.numPages; p++) {
           setStatus(`${file.name}: strona ${p}/${pdf.numPages}`);
           const page = await pdf.getPage(p);
-          const scale = 2;
-          const viewport = page.getViewport({ scale });
-          const canvas = document.createElement("canvas");
-          const ctx = canvas.getContext("2d");
-          if (!ctx) throw new Error("Brak kontekstu 2D canvas");
-          canvas.width = viewport.width;
-          canvas.height = viewport.height;
-          await page.render({ canvasContext: ctx, viewport }).promise;
-          const {
-            data: { text },
-          } = await worker.recognize(canvas);
+          let text = await extractTextNative(page);
+          let source = "warstwa PDF";
+          const nativeLen = text.trim().length;
+          const ocrNeeded =
+            nativeLen === 0 || (p === 1 && !looksLikeProtocolText(text));
+          if (ocrNeeded) {
+            source = "OCR (skan lub brak tekstu)";
+            text = await ocrPageCanvas(page, worker);
+          }
           parts.push(text);
+          pageSources.push(source);
         }
-        return parts.join("\n\n");
+        return { text: parts.join("\n\n"), pageSources };
       }
 
       /**
@@ -348,9 +415,21 @@
           for (let i = 0; i < list.length; i++) {
             const file = list[i];
             try {
-              const fullText = await ocrPdfFile(file, worker);
+              const { text: fullText, pageSources } = await ocrPdfFile(file, worker);
+              appendLog(`═══ ${file.name} ═══\n`);
+              pageSources.forEach((src, idx) => {
+                appendLog(`  strona ${idx + 1}: ${src}\n`);
+              });
+              const parsed = parseProtocolText(fullText);
+              appendLog(
+                `── Pola (parser) ──\n` +
+                  `zlecenie: ${parsed.numer_zlecenia || "—"}\n` +
+                  `przewoźnik: ${parsed.przewoznik ? parsed.przewoznik.slice(0, 200) + (parsed.przewoznik.length > 200 ? "…" : "") : "—"}\n` +
+                  `plomby (${parsed.plomby.length}): ${parsed.plomby.join(", ") || "—"}\n` +
+                  (parsed.uwagi_parse.length ? `uwagi parsera: ${parsed.uwagi_parse.join(", ")}\n` : "")
+              );
               const preview = fullText.slice(0, 2500);
-              appendLog(`═══ ${file.name} ═══\n${preview}${fullText.length > 2500 ? "\n… [ucięto]\n" : "\n"}\n`);
+              appendLog(`── Pełny tekst (fragment) ──\n${preview}${fullText.length > 2500 ? "\n… [ucięto]\n" : "\n"}\n`);
             } catch (err) {
               const msg = err instanceof Error ? err.message : String(err);
               appendLog(`═══ ${file.name} ═══\nBŁĄD: ${msg}\n\n`);

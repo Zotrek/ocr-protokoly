@@ -1,0 +1,114 @@
+{
+  "source": "pdftotext -tsv, strona 1",
+  "note_pl": "Współrzędne 0–1 względem prostokąta strony (jak w mediabox). Na skanach rozważyć powiększenie ROI o margines i/lub preprocess (deskew, kontrast). Gdy PDF nie ma warstwy tekstu, ten plik służy jako szablon z ostatniej kalibracji; ROI trzeba wtedy ustalić ręcznie lub z szablonu graficznego.",
+  "files": [
+    {
+      "file": "Papirus 10.04.26 83-000 Pruszcz Gdański Gałczyńskiego 14 32.pdf",
+      "page_size_pt": {
+        "width": 595.0,
+        "height": 842.0
+      },
+      "regions_norm": {
+        "numer_zlecenia": {
+          "left": 0.1042,
+          "top": 0.0692,
+          "width": 0.3234,
+          "height": 0.0494
+        },
+        "przewoznik": {
+          "left": 0.1042,
+          "top": 0.1557,
+          "width": 0.7777,
+          "height": 0.0719
+        },
+        "lista_plomb": {
+          "left": 0.1042,
+          "top": 0.4698,
+          "width": 0.2833,
+          "height": 0.419
+        }
+      }
+    },
+    {
+      "file": "Papirus 10.04.26 86-120 Pruszcz Główna 31.pdf",
+      "page_size_pt": {
+        "width": 595.0,
+        "height": 842.0
+      },
+      "regions_norm": {
+        "numer_zlecenia": {
+          "left": 0.1042,
+          "top": 0.0692,
+          "width": 0.3234,
+          "height": 0.0494
+        },
+        "przewoznik": {
+          "left": 0.1042,
+          "top": 0.1332,
+          "width": 0.7777,
+          "height": 0.0719
+        },
+        "lista_plomb": {
+          "left": 0.1042,
+          "top": 0.4473,
+          "width": 0.2833,
+          "height": 0.1714
+        }
+      }
+    },
+    {
+      "file": "Traszkan 10.04.26 28-362 Nagłowice Mikołaja Reja 13A.pdf",
+      "page_size_pt": {
+        "width": 595.0,
+        "height": 842.0
+      },
+      "regions_norm": {
+        "numer_zlecenia": {
+          "left": 0.1042,
+          "top": 0.0692,
+          "width": 0.3234,
+          "height": 0.0494
+        },
+        "przewoznik": {
+          "left": 0.1042,
+          "top": 0.1332,
+          "width": 0.7322,
+          "height": 0.0719
+        },
+        "lista_plomb": {
+          "left": 0.1042,
+          "top": 0.4473,
+          "width": 0.2833,
+          "height": 0.0814
+        }
+      }
+    },
+    {
+      "file": "plik.pdf",
+      "page_size_pt": {
+        "width": 595.0,
+        "height": 842.0
+      },
+      "regions_norm": {
+        "numer_zlecenia": {
+          "left": 0.1045,
+          "top": 0.0692,
+          "width": 0.3234,
+          "height": 0.0494
+        },
+        "przewoznik": {
+          "left": 0.1045,
+          "top": 0.1557,
+          "width": 0.7777,
+          "height": 0.0719
+        },
+        "lista_plomb": {
+          "left": 0.1045,
+          "top": 0.4698,
+          "width": 0.2833,
+          "height": 0.419
+        }
+      }
+    }
+  ]
+}
