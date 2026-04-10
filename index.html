@@ -222,6 +222,34 @@
         cursor: help;
       }
 
+      .ocr-roi-row {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: flex-end;
+        gap: 0.5rem 0.85rem;
+        margin-top: 0.65rem;
+        padding-top: 0.65rem;
+        border-top: 1px solid var(--border);
+        font-size: 0.82rem;
+        color: var(--text-muted);
+      }
+
+      .ocr-roi-row > span.roi-row-title {
+        flex: 1 0 100%;
+        font-size: 0.78rem;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: var(--text-muted);
+      }
+
+      .ocr-roi-row label {
+        display: inline-flex;
+        flex-direction: column;
+        gap: 0.2rem;
+        cursor: help;
+        font-size: 0.78rem;
+      }
+
       .field-hint {
         margin: 0;
         font-size: 0.75rem;
@@ -418,9 +446,26 @@
               title="Skala 0–100 (pewność Tesseract): dla pliku używana jest najniższa wartość z przebiegów OCR. Poniżej progu → folder problematyczne, nawet przy poprawnym tekście. Przy PDF z samą warstwą tekstową (bez OCR) próg nie obowiązuje. Dłuższy opis: najedź kursorem na etykietę „Próg OCR”."
             />
             <p id="hintOcrMin" class="field-hint" role="note">
-              Wartość 0–100. Pełny opis działania progu — <strong>podpowiedź po najechaniu</strong> na etykietę „Próg OCR” lub na pole obok.
+              Wartość 0–100. Pełny opis działania progu — <strong>podpowiedź po najechaniu</strong> na etykietę „Próg OCR” lub na pole obok. Gdy używany jest <strong>OCR ROI str. 1</strong>, możesz ustawić osobne progi poniżej (puste = jak próg ogólny).
             </p>
           </div>
+        </div>
+        <div class="ocr-roi-row" role="group" aria-label="Opcjonalne progi pewności OCR dla regionów strony 1">
+          <span class="roi-row-title">Progi ROI str. 1 (opcjonalnie)</span>
+          <label
+            title="Minimalna pewność Tesseract dla wycinka z numerem zlecenia. Puste = ten sam próg co „Próg OCR”."
+          >
+            Zlecenie
+            <input type="number" id="inpOcrRoiZlecenie" min="0" max="100" step="1" placeholder="—" inputmode="numeric" />
+          </label>
+          <label title="Dla wycinka z listą plomb. Puste = próg ogólny.">
+            Lista plomb
+            <input type="number" id="inpOcrRoiLista" min="0" max="100" step="1" placeholder="—" inputmode="numeric" />
+          </label>
+          <label title="Dla wycinka z przewoźnikiem. Puste = próg ogólny.">
+            Przewoźnik
+            <input type="number" id="inpOcrRoiPrzewoznik" min="0" max="100" step="1" placeholder="—" inputmode="numeric" />
+          </label>
         </div>
         <p class="hint" id="hintBrowserMode"></p>
       </section>

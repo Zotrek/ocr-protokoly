@@ -22,7 +22,7 @@ Krótki przegląd **co działa w POC** i **co zostaje do zrobienia** (zwłaszcza
 - **Lista w dwóch kolumnach** (wiele `1. … 2. …` w jednym wierszu): wyciąganie plomb po **pozycjach `k.`** z zatrzymaniem przed następnym `k.` (funkcja `plombyFromListLine` w [`protocol_parse.mjs`](protocol_parse.mjs)).
 - **ROI wąska vs A4**: w `roi_default.json` jest **`narrow_page_width_pt_max`** (domyślnie **585** pt w przestrzeni PDF): strona węższa niż próg (np. skan ~578×824) używa **`regions_norm_narrow`**, szersza — **`regions_norm`**. Gdy progu szerokości **nie ma** w JSON, wybór „wąskiej” mapy pada na **`aspect_ratio_narrow_max`** (fallback).
 - **Str. 2+:** jeśli warstwa PDF jest **niepusta**, ale **bez** nagłówka listy plomb (wzór jak w parserze) — **wymuszany OCR** pełnej strony (typowy skan z bezużytecznym tekstem). Nadal możliwe edge case’y (np. inna pisownia nagłówka) — regexy w `protocol_parse.mjs`.
-- **Pewność Tesseract**: przy **OCR ROI str. 1** (wybrana ścieżka ROI, nie pełna strona) — osobno **numer zlecenia / przewoźnik / lista plomb** vs próg (`niski_confidence_ocr_roi_*` w `Uwagi_odczyt`); przy **pełnej stronie 1** lub braku mapy ROI — jak wcześniej **jedna** wartość `niski_confidence_ocr(min)`. Regulacja progu w UI + `localStorage`.
+- **Pewność Tesseract**: przy **OCR ROI str. 1** (wybrana ścieżka ROI, nie pełna strona) — osobno **numer zlecenia / przewoźnik / lista plomb** vs próg (`niski_confidence_ocr_roi_*` w `Uwagi_odczyt`); opcjonalnie **inny próg per region** (puste pole = próg ogólny). Przy **pełnej stronie 1** lub braku mapy ROI — **jedna** wartość `niski_confidence_ocr(min)`. Regulacja w UI + `localStorage`.
 - **Zamknięcie karty**: `pagehide` → `terminate()` workera Tesseract (zwolnienie zasobów).
 - Czytelne błędy **pdf.js**: [`pdf_errors.mjs`](pdf_errors.mjs) (hasło, uszkodzony plik itd.).
 
@@ -53,7 +53,7 @@ Krótki przegląd **co działa w POC** i **co zostaje do zrobienia** (zwłaszcza
 - [ ] **Próbki skanów bitowych** (kontrast, skos, zagięcia, dopiski odręczne) — dalsze edge case’y.
 - [ ] **Dopasowanie ROI** do skanów (marginesy, ewentualnie deskew / kontrast przed OCR); pierwsza iteracja: `regions_norm` / `regions_norm_narrow` + próg szerokości w pt.
 - [ ] **Ostateczna długość i regex** `numer_zlecenia` (obecnie dowolna liczba cyfr z etykiety) — do potwierdzenia; **`numer_plomby`:** stałe `PLOMBA_LEN_EXCEL` / `PLOMBA_RAW_LEN_*` w [`protocol_parse.mjs`](protocol_parse.mjs) (łatwa zmiana progu).
-- [ ] **Progi confidence per pole** (osobno ROI zlecenie / lista plomb / przewoźnik vs średnia z całego bloku).
+- [x] **Progi confidence per pole (ROI str. 1):** opcjonalne pola w UI + `confidenceMinRoi` w [`protocol_parse.mjs`](protocol_parse.mjs) (`protocolReadoutQuality`); puste pole ROI = próg ogólny z „Próg OCR”.
 - [ ] **Dopiski odręczne** w polach — heurystyka lub flaga z silnika (§4 spec) → na razie **nie** zaimplementowane.
 
 ### Excel / audyt (doprecyzowanie vs §3.2)
@@ -86,4 +86,4 @@ Pełna lista checkboxów: **§8** w [`OCR_protokoly_skan_spec.md`](OCR_protokoly
 
 ---
 
-*Ostatnia aktualizacja dokumentu: 2026-04-10 — m.in. stałe długości plomb, skrypty lokalnego serwera, OCR str. 2+ bez listy w warstwie PDF.*
+*Ostatnia aktualizacja dokumentu: 2026-04-10 — m.in. osobne progi ROI (opcjonalnie), stałe długości plomb, skrypty lokalnego serwera.*

@@ -150,7 +150,7 @@ Plik trafia do **`done`** tylko wtedy, gdy **wszystkie** pola krytyczne spełnia
 - [ ] Definicja ROI na stronie — **częściowo:** `roi_default.json` + wąska mapa + próg szerokości w pt; dalsze dopasowanie po kolejnych skanach.
 - [x] OCR **wszystkich** stron skanu bez warstwy tekstowej (nie tylko str. 1 + wyjątek str. 2).
 - [x] Progi **confidence** (POC: minimalna pewność Tesseract z użytych przebiegów OCR na pliku vs próg `OCR_CONFIDENCE_MIN` w `protocol_parse.mjs`; brak warstwy tekstowej na stronie → brak progu dla tej strony).
-- [ ] Doprecyzowanie progów per pole (ROI vs pełna strona).
+- [x] Progi per pole dla **ROI str. 1** (opcjonalnie wyższy/niższy próg niż ogólny dla zlecenia / listy / przewoźnika); pełna strona 1 i str. 2+ — nadal jeden próg ogólny vs `ocrMinConfidence`.
 - [x] Nazwa i lokalizacja pliku Excel — **§3.3** (`wynik_YYYY-MM-DD.xlsx`, folder roboczy; drugie uruchomienie: dopisanie wierszy, usunięcie starego pliku, zapis nowego).
 - [x] Czy tworzyć `done` / `problematyczne` automatycznie, jeśli nie istnieją — **tak** (POC: `getDirectoryHandle(..., { create: true })`).
 - [x] Zachowanie przy **duplikatach** nazw plików w podfolderach (POC: kolumna `nazwa_pliku` = ścieżka względna `pod/plik.pdf`; na dysku po przeniesieniu nazwa spłaszczona `pod__plik.pdf` w `done` / `problematyczne`).
@@ -171,3 +171,4 @@ Plik trafia do **`done`** tylko wtedy, gdy **wszystkie** pola krytyczne spełnia
 | 2026-04-10 | §7: OCR str. 2+ przy braku tekstu; wiele protokołów (`segments`); lista wielokolumnowa w wierszu. |
 | 2026-04-10 | §7: preprocess rastra przed OCR; filtr nazwy pliku; wiersze Excel dla plomb poza 15 cyframi. |
 | 2026-04-10 | §7: OCR str. 2+ gdy warstwa PDF bez nagłówka listy plomb (`nativeTextHasListaPlomb`). |
+| 2026-04-10 | §8: progi per pole dla ROI str. 1 (opcjonalnie w UI); pełna strona — próg ogólny. |

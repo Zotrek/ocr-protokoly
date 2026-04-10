@@ -250,10 +250,12 @@ export function protocolStructuralOk(parsed) {
 
 /**
  * Kwalifikacja do folderu done / problematyczne i treść kolumny Uwagi_odczyt (spec §3–4).
+ * Opcjonalnie `meta.confidenceMinRoi`: osobne progi 0–100 per region ROI (brak klucza → `confidenceMin` / domyślny).
  * @param {ProtocolFields} parsed
  * @param {{
  *   ocrMinConfidence?: number | null,
  *   confidenceMin?: number,
+ *   confidenceMinRoi?: Partial<Record<keyof RoiOcrConfidences, number>> | null,
  *   ocrRegionConfidence?: RoiOcrConfidences | null,
  * }} [meta]
  */
@@ -272,23 +274,30 @@ export function protocolReadoutQuality(parsed, meta = {}) {
   }
   const badPlomby = parsed.plomby.filter((p) => !isPlombaFormatSample(p));
   if (badPlomby.length) issues.push("plomba_format");
-  const threshold =
+  const defaultThreshold =
     typeof meta.confidenceMin === "number" && Number.isFinite(meta.confidenceMin)
       ? meta.confidenceMin
       : OCR_CONFIDENCE_MIN;
+  const roiOverrides = meta.confidenceMinRoi && typeof meta.confidenceMinRoi === "object" ? meta.confidenceMinRoi : null;
+  /** @param {keyof RoiOcrConfidences} k */
+  function roiThreshold(k) {
+    const o = roiOverrides?.[k];
+    if (typeof o === "number" && Number.isFinite(o)) return o;
+    return defaultThreshold;
+  }
   const orc = meta.ocrRegionConfidence;
   if (orc && typeof orc === "object") {
     /** @type {(keyof RoiOcrConfidences)[]} */
     const keys = ["numer_zlecenia", "przewoznik", "lista_plomb"];
     for (const k of keys) {
       const c = orc[k];
-      if (typeof c === "number" && Number.isFinite(c) && c < threshold) {
+      if (typeof c === "number" && Number.isFinite(c) && c < roiThreshold(k)) {
         issues.push(`niski_confidence_ocr_roi_${k}(${Math.round(c)})`);
       }
     }
   } else {
     const oc = meta.ocrMinConfidence;
-    if (oc != null && Number.isFinite(oc) && oc < threshold) {
+    if (oc != null && Number.isFinite(oc) && oc < defaultThreshold) {
       issues.push(`niski_confidence_ocr(${Math.round(oc)})`);
     }
   }

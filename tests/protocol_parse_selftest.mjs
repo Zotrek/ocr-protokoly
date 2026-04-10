@@ -74,6 +74,31 @@ const qRoiOk = protocolReadoutQuality(p, {
 });
 assert.ok(qRoiOk.ok);
 
+const qRoiPerFieldOk = protocolReadoutQuality(p, {
+  ocrRegionConfidence: { numer_zlecenia: 48, przewoznik: 80, lista_plomb: 80 },
+  confidenceMin: 50,
+  confidenceMinRoi: { numer_zlecenia: 45 },
+});
+assert.ok(qRoiPerFieldOk.ok);
+
+const qRoiPerFieldBad = protocolReadoutQuality(p, {
+  ocrRegionConfidence: { numer_zlecenia: 48, przewoznik: 80, lista_plomb: 80 },
+  confidenceMin: 50,
+  confidenceMinRoi: { numer_zlecenia: 52 },
+});
+assert.ok(!qRoiPerFieldBad.ok);
+assert.ok(
+  qRoiPerFieldBad.issues.some((i) => /niski_confidence_ocr_roi_numer_zlecenia\(48\)/.test(i))
+);
+
+const qRoiListaStrict = protocolReadoutQuality(p, {
+  ocrRegionConfidence: { numer_zlecenia: 80, przewoznik: 80, lista_plomb: 65 },
+  confidenceMin: 50,
+  confidenceMinRoi: { lista_plomb: 70 },
+});
+assert.ok(!qRoiListaStrict.ok);
+assert.ok(qRoiListaStrict.issues.some((i) => /niski_confidence_ocr_roi_lista_plomb/.test(i)));
+
 assert.equal(OCR_CONFIDENCE_MIN, 55);
 assert.equal(PLOMBA_LEN_EXCEL, 15);
 assert.equal(PLOMBA_RAW_LEN_MIN, 12);
