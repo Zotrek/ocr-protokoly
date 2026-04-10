@@ -2,7 +2,7 @@
  * ROI-based OCR for protocol page 1 (scans). Stitches crops into text the parser understands.
  */
 
-import { RE_LISTA_PLOMB } from "./protocol_parse.mjs";
+import { RE_LISTA_PLOMB, RE_PRZEWOZ_START } from "./protocol_parse.mjs";
 
 /** @typedef {{ left: number, top: number, width: number, height: number }} NormRect */
 /**
@@ -141,6 +141,23 @@ export function enhanceCanvasForOcr(canvas) {
 }
 
 /**
+ * Renderuje stronę PDF na nowy canvas przy zadanej skali.
+ * @param {import('pdfjs-dist').PDFPageProxy} page
+ * @param {number} scale
+ * @returns {Promise<HTMLCanvasElement>}
+ */
+export async function renderPageToCanvas(page, scale) {
+  const viewport = page.getViewport({ scale });
+  const canvas = document.createElement("canvas");
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Brak kontekstu 2D canvas");
+  canvas.width = viewport.width;
+  canvas.height = viewport.height;
+  await page.render({ canvasContext: ctx, viewport }).promise;
+  return canvas;
+}
+
+/**
  * @param {import('tesseract.js').Worker} worker
  * @param {HTMLCanvasElement | OffscreenCanvas} canvas
  * @returns {Promise<{ text: string, confidence: number }>}
@@ -166,13 +183,7 @@ export async function recognizeCanvasWithConfidence(worker, canvas) {
  */
 export async function ocrPage1RoiStitched(page, worker, cfg) {
   const scale = 2;
-  const viewport = page.getViewport({ scale });
-  const canvas = document.createElement("canvas");
-  const ctx = canvas.getContext("2d");
-  if (!ctx) throw new Error("Brak kontekstu 2D canvas");
-  canvas.width = viewport.width;
-  canvas.height = viewport.height;
-  await page.render({ canvasContext: ctx, viewport }).promise;
+  const canvas = await renderPageToCanvas(page, scale);
   enhanceCanvasForOcr(canvas);
 
   const margin = cfg.margin ?? 0.02;
@@ -206,7 +217,7 @@ export async function ocrPage1RoiStitched(page, worker, cfg) {
   const lRaw = l.text;
 
   const zLine = /zlecenie/i.test(zRaw) ? zRaw : `Zlecenie transportowe nr: ${zRaw}`;
-  const pLine = /przewoźnik/i.test(pRaw) ? pRaw : `Przewoźnik: ${pRaw}`;
+  const pLine = RE_PRZEWOZ_START.test(pRaw) ? pRaw : `Przewoźnik: ${pRaw}`;
   const listBlock = RE_LISTA_PLOMB.test(lRaw) ? lRaw : `Lista odebranych plomb:\n${lRaw}`;
 
   const text = [zLine, "", pLine, "", listBlock].join("\n");
@@ -220,14 +231,7 @@ export async function ocrPage1RoiStitched(page, worker, cfg) {
  * @returns {Promise<{ text: string, confidence: number }>}
  */
 export async function ocrFullPageText(page, worker) {
-  const scale = 2;
-  const viewport = page.getViewport({ scale });
-  const canvas = document.createElement("canvas");
-  const ctx = canvas.getContext("2d");
-  if (!ctx) throw new Error("Brak kontekstu 2D canvas");
-  canvas.width = viewport.width;
-  canvas.height = viewport.height;
-  await page.render({ canvasContext: ctx, viewport }).promise;
+  const canvas = await renderPageToCanvas(page, 2);
   enhanceCanvasForOcr(canvas);
   return recognizeCanvasWithConfidence(worker, canvas);
 }

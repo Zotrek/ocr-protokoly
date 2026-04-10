@@ -29,7 +29,7 @@ const RE_ZLECENIE = /Zlecenie\s+transportowe\s+nr\s*:\s*(\d[\d \t]{0,23})/i;
  * OCR często bez „ó” / „ź”; tolerancja na spację wewnątrz słowa (np. „Przew oznik”).
  * Dopasowuje „Przewoznik:”, „Przewoźnik:”, „Przew oznik:” i podobne warianty.
  */
-const RE_PRZEWOZ_START = /Przew\s?[oó]\s?[zź]ni?k\s*:\s*/i;
+export const RE_PRZEWOZ_START = /Przew\s?[oó]\s?[zź]ni?k\s*:\s*/i;
 const RE_MIEJSCE_DOSTAWY = /Miejsce\s+dostawy\s*:/i;
 /**
  * Nagłówek listy plomb (parser, `nativeTextHasListaPlomb`, ROI stitch) —

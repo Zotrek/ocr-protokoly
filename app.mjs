@@ -15,6 +15,7 @@ import {
   buildRowsForError,
   mergeAndBuildWorkbookBlob,
   writeWorkbookToDirectory,
+  loadXlsx,
 } from "./export_xlsx.mjs";
 import { humanizePdfError } from "./pdf_errors.mjs";
 import { pdfJobsFromWebkitFileList, SKIP_DIR_NAMES } from "./folder_jobs.mjs";
@@ -529,3 +530,6 @@ el.inputDir.addEventListener("change", async () => {
   jobs.sort((a, b) => a.excelName.localeCompare(b.excelName, "pl"));
   await runQueue(jobs, null);
 });
+
+// Wczytaj SheetJS z CDN z wyprzedzeniem — eliminuje opóźnienie przy pierwszym zapisie Excel.
+loadXlsx().catch(() => {});
