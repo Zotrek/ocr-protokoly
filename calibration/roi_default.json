@@ -1,9 +1,16 @@
 {
-  "description": "Default normalized ROIs for A4 protocol page 1 (from calibration/roi_hints + small margin). Used when OCR runs on scans.",
-  "margin": 0.02,
+  "description": "ROI znormalizowane 0–1 dla strony 1 protokołu. regions_norm — A4 ~595×842; regions_norm_narrow — skanery ~578×824 (np. CCF); przełączanie po stosunku szer./wys. strony.",
+  "margin": 0.028,
+  "narrow_page_width_pt_max": 585,
+  "aspect_ratio_narrow_max": 0.72,
   "regions_norm": {
-    "numer_zlecenia": { "left": 0.10, "top": 0.06, "width": 0.34, "height": 0.055 },
-    "przewoznik": { "left": 0.10, "top": 0.13, "width": 0.82, "height": 0.095 },
-    "lista_plomb": { "left": 0.10, "top": 0.43, "width": 0.32, "height": 0.49 }
+    "numer_zlecenia": { "left": 0.09, "top": 0.055, "width": 0.36, "height": 0.06 },
+    "przewoznik": { "left": 0.09, "top": 0.125, "width": 0.84, "height": 0.1 },
+    "lista_plomb": { "left": 0.09, "top": 0.415, "width": 0.34, "height": 0.52 }
+  },
+  "regions_norm_narrow": {
+    "numer_zlecenia": { "left": 0.065, "top": 0.048, "width": 0.4, "height": 0.068 },
+    "przewoznik": { "left": 0.065, "top": 0.115, "width": 0.9, "height": 0.115 },
+    "lista_plomb": { "left": 0.065, "top": 0.395, "width": 0.4, "height": 0.54 }
   }
 }

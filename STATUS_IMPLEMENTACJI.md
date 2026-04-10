@@ -16,8 +16,12 @@ Krótki przegląd **co działa w POC** i **co zostaje do zrobienia** (zwłaszcza
 
 ### OCR / PDF
 - **Warstwa tekstowa PDF** (eksport Word): odczyt bez OCR, jeśli heurystyka uzna tekst za pełny protokół.
-- **Skany / brak tekstu**: OCR strony 1 przez **ROI** (`calibration/roi_default.json` + [`roi_ocr.mjs`](roi_ocr.mjs)), przy słabej strukturze — drugi przebieg **cała strona 1**; dalsze strony — pełny OCR.
-- **Pewność Tesseract**: minimalna z użytych przebiegów vs próg (`OCR_CONFIDENCE_MIN` + regulacja w UI + `localStorage`); poniżej → **problematyczne**. Na stronie: widoczna podpowiedź + `title` na etykiecie „Próg OCR”.
+- **Skany / brak tekstu na str. 1**: OCR strony 1 przez **ROI** (`calibration/roi_default.json` + [`roi_ocr.mjs`](roi_ocr.mjs)), przy słabej strukturze — drugi przebieg **cała strona 1**.
+- **Strony 2+** przy skanie (brak warstwy tekstowej): **bez OCR** — pusty tekst ze stron następnych, źródło w logu: „pominięto (… OCR tylko str. 1 — protokół)”. Gdy PDF ma **tekst natywny** na kolejnych stronach, jest on dalej **łączony** do parsowania (np. załączniki z tekstem).
+- **ROI wąska vs A4**: w `roi_default.json` jest **`narrow_page_width_pt_max`** (domyślnie **585** pt w przestrzeni PDF): strona węższa niż próg (np. skan ~578×824) używa **`regions_norm_narrow`**, szersza — **`regions_norm`**. Gdy progu szerokości **nie ma** w JSON, wybór „wąskiej” mapy pada na **`aspect_ratio_narrow_max`** (fallback).
+- **Ograniczenie:** jeśli **lista plomb** lub inne pole protokołu kiedykolwiek trafi na **str. 2+** bez warstwy tekstowej, obecna logika ich **nie odczyta** — wtedy trzeba rozszerzyć pipeline (np. OCR wybranych stron).
+- **Pewność Tesseract**: przy **OCR ROI str. 1** (wybrana ścieżka ROI, nie pełna strona) — osobno **numer zlecenia / przewoźnik / lista plomb** vs próg (`niski_confidence_ocr_roi_*` w `Uwagi_odczyt`); przy **pełnej stronie 1** lub braku mapy ROI — jak wcześniej **jedna** wartość `niski_confidence_ocr(min)`. Regulacja progu w UI + `localStorage`.
+- **Zamknięcie karty**: `pagehide` → `terminate()` workera Tesseract (zwolnienie zasobów).
 - Czytelne błędy **pdf.js**: [`pdf_errors.mjs`](pdf_errors.mjs) (hasło, uszkodzony plik itd.).
 
 ### Kalibracja (dev, bez przeglądarki)
@@ -30,6 +34,7 @@ Krótki przegląd **co działa w POC** i **co zostaje do zrobienia** (zwłaszcza
 
 ### Testy (Node, bez PDF)
 - `node tests/protocol_parse_selftest.mjs`
+- `node tests/roi_pick_selftest.mjs` (wybór `regions_norm` vs `regions_norm_narrow`)
 - `node tests/pdf_errors_selftest.mjs`
 - `node tests/excel_export_selftest.mjs`
 
@@ -41,20 +46,22 @@ Krótki przegląd **co działa w POC** i **co zostaje do zrobienia** (zwłaszcza
 ## TODO / dalsza praca
 
 ### Wymaga prawdziwych skanów (priorytet)
-- [ ] **Próbki skanów bitowych** (kontrast, skos, zagięcia, dopiski odręczne).
-- [ ] **Dopasowanie ROI** do skanów (marginesy, ewentualnie deskew / kontrast przed OCR).
+- [x] **Przykładowe skany** w `dane testowe/` (m.in. wąska strona ~578 pt, wielostronicowe bez tekstu) — pod kątem ROI i wydajności.
+- [ ] **Próbki skanów bitowych** (kontrast, skos, zagięcia, dopiski odręczne) — dalsze edge case’y.
+- [ ] **Dopasowanie ROI** do skanów (marginesy, ewentualnie deskew / kontrast przed OCR); pierwsza iteracja: `regions_norm` / `regions_norm_narrow` + próg szerokości w pt.
 - [ ] **Ostateczna długość i regex** `numer_zlecenia` (obecnie dowolna liczba cyfr z etykiety) i **`numer_plomby`** (POC: 15 cyfr jak w Word — do potwierdzenia).
 - [ ] **Progi confidence per pole** (osobno ROI zlecenie / lista plomb / przewoźnik vs średnia z całego bloku).
 - [ ] **Dopiski odręczne** w polach — heurystyka lub flaga z silnika (§4 spec) → na razie **nie** zaimplementowane.
 
 ### Excel / audyt (doprecyzowanie vs §3.2)
-- [ ] Przy częściowym sukcesie plomb: spec przewiduje **różne `Uwagi_odczyt` per wiersz** dla problematycznych plomb; POC ustawia **jedną** wartość `uwagi_excel` dla wszystkich wierszy pliku i do Excela trafiają tylko plomby **z poprawnym formatem 15 cyfr**.
+- [x] Częściowy sukces plomb (część numerów odrzucona z powodu formatu): wiersze z **poprawnymi** 15 cyframi mają czytelną adnotację (`excelUwagiForSealRow` w [`export_xlsx.mjs`](export_xlsx.mjs)); łączenie z innymi problemami pliku (np. niski OCR) nadal w jednej kolumnie.
+- [ ] Przy **pojedynczej** plombie problematycznej vs pozostałe `ok` — nadal bez osobnego wiersza dla odrzuconego numeru (nie ma go w Excelu).
 
 ### Produkt / techniczne
 - [ ] **Filtr nazw PDF** (jeśli potrzebny poza `*.pdf`).
 - [ ] **Paczka offline** + ewentualnie `.bat` + lokalny serwer (opis w §6 spec — nie zautomatyzowane w repo).
 - [ ] **CSP / SRI** pod konkretny hosting (jeśli polityka bezpieczeństwa wymaga).
-- [ ] Opcjonalnie: **terminacja workera OCR** przy zamknięciu karty (oszczędność zasobów).
+- [x] **Terminacja workera OCR** przy `pagehide` (oszczędność zasobów).
 
 ### Spec — otwarte punkty (skrót)
 Pełna lista checkboxów: **§8** w [`OCR_protokoly_skan_spec.md`](OCR_protokoly_skan_spec.md). Najważniejsze nadal otwarte: **skany bitowe**, **regexy/długości**, **ROI po skanach**, **progi per pole**, **dopiski odręczne**.
@@ -76,4 +83,4 @@ Pełna lista checkboxów: **§8** w [`OCR_protokoly_skan_spec.md`](OCR_protokoly
 
 ---
 
-*Ostatnia aktualizacja dokumentu: stan repozytorium w momencie utworzenia pliku (POC).*
+*Ostatnia aktualizacja dokumentu: 2026-04-10 — dopisano zachowanie str. 2+, ROI wąska/A4, test `roi_pick`, ograniczenie listy plomb na str. 2+.*

@@ -71,13 +71,36 @@ export function excelExistingReadErrorMessage(fileBaseName, cause) {
 }
 
 /**
+ * Uwagi dla wierszy z poprawnymi plombami: problemy plikowe (bez samego `plomba_format`);
+ * przy samym błędzie formatu części numerów — czytelna adnotacja zamiast dublowania na każdym wierszu.
+ * @param {{ ok: boolean, uwagi_excel: string, issues?: string[] }} quality
+ */
+export function excelUwagiForSealRow(quality) {
+  if (quality.ok) return "ok";
+  const issues =
+    Array.isArray(quality.issues) && quality.issues.length > 0
+      ? quality.issues
+      : quality.uwagi_excel
+          .split(";")
+          .map((s) => s.trim())
+          .filter(Boolean);
+  const hasFormat = issues.includes("plomba_format");
+  const nonPlomb = issues.filter((i) => i !== "plomba_format" && i !== "brak_plomb");
+  if (issues.length === 1 && issues[0] === "plomba_format") {
+    return "ok — w dokumencie odrzucono część numerów (wymagane 15 cyfr)";
+  }
+  const parts = [...nonPlomb];
+  if (hasFormat) parts.push("część numerów plomb pominięta (format 15 cyfr)");
+  return parts.length ? parts.join("; ") : quality.uwagi_excel;
+}
+
+/**
  * @param {string} fileName
  * @param {ProtocolFields} parsed
- * @param {{ ok: boolean, uwagi_excel: string }} quality
+ * @param {{ ok: boolean, uwagi_excel: string, issues?: string[] }} quality
  * @returns {Record<string, string>[]}
  */
 export function buildExcelRows(fileName, parsed, quality) {
-  const uw = quality.uwagi_excel;
   const pl = parsed.plomby.filter((p) => isPlombaFormatSample(p));
   const rows = [];
   if (pl.length === 0) {
@@ -86,17 +109,18 @@ export function buildExcelRows(fileName, parsed, quality) {
       numer_zlecenia: parsed.numer_zlecenia,
       przewoznik: parsed.przewoznik,
       numer_plomby: "",
-      Uwagi_odczyt: uw,
+      Uwagi_odczyt: quality.uwagi_excel,
     });
     return rows;
   }
+  const uwRow = excelUwagiForSealRow(quality);
   for (const numer_plomby of pl) {
     rows.push({
       nazwa_pliku: fileName,
       numer_zlecenia: parsed.numer_zlecenia,
       przewoznik: parsed.przewoznik,
       numer_plomby,
-      Uwagi_odczyt: uw,
+      Uwagi_odczyt: uwRow,
     });
   }
   return rows;

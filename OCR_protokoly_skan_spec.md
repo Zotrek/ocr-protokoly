@@ -1,7 +1,7 @@
 # Specyfikacja: odczyt skanów protokołów (OCR) → Excel + sortowanie plików
 
 **Projekt:** `OCR_protokoly` (osobny od `arkusz-mapa`).  
-**Status:** szkic do dopracowania po dostarczeniu przykładowych skanów  
+**Status:** szkic — uzupełniany po próbkach; w `dane testowe/` są już m.in. skany rzeczywiste (kalibracja ROI, zachowanie wielostronicowe).  
 **Powiązanie:** protokoły generowane ze szablonu w projekcie **arkusz-mapa** — opis znaczników: [`../arkusz-mapa/docs/SZABLON_WORD_tagi.txt`](../arkusz-mapa/docs/SZABLON_WORD_tagi.txt) (szablon Word `pusty.docx`: m.in. `{{przewoznik}}`, `{{lista_plomb}}` itd.).  
 **Skala:** kilkadziesiąt plików PDF dziennie.
 
@@ -30,7 +30,7 @@ Szczegóły technologiczne (hosting vs. paczka lokalna) — sekcja 6.
 | 1 | **Skany PDF** (nie wektorowy tekst z Worda) | Wymagany pipeline OCR + ewentualnie preprocess obrazu strony. |
 | 2 | **Stały layout** strony | Możliwe wycięcie ROI (regionów) pod zlecenie, listę plomb, przewoźnika. |
 | 3 | **Format numerów** | Zlecenie i plomby: **stała długość**, **tylko cyfry** — dokładne długości i ewentualne prefiksy **do uzupełnienia** po próbkach rzeczywistych skanów. |
-| 4 | **Przykładowe pliki** | Folder `dane testowe/`: PDF z warstwą tekstową (eksport Word) — ten sam układ co na skanach; kalibracja ROI: `tools/calibrate_layout.py` → `calibration/roi_hints.json`. Skany bitowe — do dalszej kalibracji progów OCR. |
+| 4 | **Przykładowe pliki** | Folder `dane testowe/`: PDF z warstwą tekstową (eksport Word) oraz **skany** (bez użytecznej warstwy tekstowej). Kalibracja ROI z tekstem: `tools/calibrate_layout.py` → `calibration/roi_hints.json`; skany: domyślne ROI w `calibration/roi_default.json` (`regions_norm` / `regions_norm_narrow`, próg szerokości strony w pt — patrz §7). |
 
 ---
 
@@ -131,7 +131,9 @@ Plik trafia do **`done`** tylko wtedy, gdy **wszystkie** pola krytyczne spełnia
 - **Punkt wejścia:** `index.html` (style inline) + `app.mjs` i moduły pomocnicze (`protocol_parse.mjs`, `roi_ocr.mjs`, `export_xlsx.mjs`, `pdf_errors.mjs`); zależności z **CDN** — bez `npm` po stronie klienta.
 - **Kolejka:** pliki PDF przetwarzane **sekwencyjnie** (jeden po drugim), bez równoległego OCR wielu dokumentów.
 - **Jeden worker OCR:** pojedyncza instancja Tesseract.js (`createWorker`), ponowne użycie dla całej kolejki w danym uruchomieniu — mniejsze szczytowe zużycie CPU/RAM niż wiele workerów.
-- **Dalsze etapy** (Excel, `done` / `problematyczne`, ROI, walidacja regexów) — po próbkach skanów; patrz sekcja 8.
+- **ROI na str. 1 (POC):** `calibration/roi_default.json` — dwie mapy prostokątów znormalizowanych: `regions_norm` (typowa szerokość A4 ~595 pt) oraz `regions_norm_narrow` (węższe skany, np. ~578 pt). Jeśli w pliku jest **`narrow_page_width_pt_max`** (np. 585), wybór mapy opiera się na **szerokości strony w przestrzeni PDF** (`getViewport({ scale: 1 })`): poniżej progu → wąska mapa, w przeciwnym razie → zwykła. **Bez** tego progu szerokości decyzja może padać na **`aspect_ratio_narrow_max`** (fallback dla nietypowych proporcji).
+- **OCR a numer strony (POC):** strona **1** — warstwa natywna lub, gdy jej brak / tekst nie wygląda jak protokół, **OCR** (ROI, ewentualnie drugi przebieg całej strony 1). Strony **2+**: jeśli jest **warstwa tekstowa**, tekst jest **dołączany**; jeśli **nie ma** warstwy (typowy wielostronicowy skan), **OCR tych stron jest pomijany** (wydajność; założenie, że pola protokołu są na str. 1). **Ryzyko produktowe:** lista plomb lub inne pole wyłącznie na str. 2+ bez tekstu — **nie zostanie odczytane** bez rozszerzenia logiki.
+- **Dalsze etapy** (Excel, `done` / `problematyczne`, dopieszczenie ROI, walidacja regexów) — patrz sekcja 8.
 
 **Hosting:** krok po kroku — [`HOSTING.md`](HOSTING.md).
 
@@ -140,9 +142,11 @@ Plik trafia do **`done`** tylko wtedy, gdy **wszystkie** pola krytyczne spełnia
 ## 8. Otwarte punkty (przed implementacją)
 
 - [x] Przykładowe PDF w `dane testowe/` (layout jak produkcyjny dokument; bez warstwy tekstowej w docelowych skanach).
+- [x] Pierwsze **skany rzeczywiste** w `dane testowe/` (podstawa pod ROI wąskie/A4 i pomijanie OCR str. 2+).
 - [ ] Przykładowe skany bitowe (kilka reprezentatywnych + edge cases: niski kontrast, skos, dopiski odręczne).
 - [ ] Dokładna **długość** (i ewentualnie prefiks) dla `numer_zlecenia` i `numer_plomby` (regexy).
-- [ ] Definicja ROI na stronie (współrzędne lub proporcje względem strony A4) — po próbkach.
+- [ ] Definicja ROI na stronie — **częściowo:** `roi_default.json` + wąska mapa + próg szerokości w pt; dalsze dopasowanie po kolejnych skanach.
+- [ ] Jeśli zlecenia wymagają pól na **str. 2+** bez warstwy tekstowej — rozszerzyć OCR (obecnie tylko str. 1 przy skanie).
 - [x] Progi **confidence** (POC: minimalna pewność Tesseract z użytych przebiegów OCR na pliku vs próg `OCR_CONFIDENCE_MIN` w `protocol_parse.mjs`; brak warstwy tekstowej na stronie → brak progu dla tej strony).
 - [ ] Doprecyzowanie progów per pole (ROI vs pełna strona).
 - [x] Nazwa i lokalizacja pliku Excel — **§3.3** (`wynik_YYYY-MM-DD.xlsx`, folder roboczy; drugie uruchomienie: dopisanie wierszy, usunięcie starego pliku, zapis nowego).
@@ -159,3 +163,4 @@ Plik trafia do **`done`** tylko wtedy, gdy **wszystkie** pola krytyczne spełnia
 | 2026-04-10 | Przeniesienie do osobnego folderu projektu `OCR_protokoly/`; link do `arkusz-mapa/docs/SZABLON_WORD_tagi.txt`. |
 | 2026-04-10 | Sekcja 7: faza początkowa — jeden `index.html`, kolejka, jeden worker OCR; link do `HOSTING.md`. |
 | 2026-04-10 | §3.3: nazwa `wynik_YYYY-MM-DD.xlsx`, dopisywanie przy kolejnym uruchomieniu tego samego dnia (po wczytaniu: usunięcie starego pliku, zapis nowego z pełną treścią). |
+| 2026-04-10 | §2 / §7 / §8: skany w `dane testowe/`, ROI `regions_norm` + `regions_norm_narrow` i próg `narrow_page_width_pt_max`, OCR str. 1 vs pomijanie OCR str. 2+ przy braku tekstu, otwarty punkt pola na str. 2+. |

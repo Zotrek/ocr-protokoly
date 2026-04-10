@@ -74,6 +74,20 @@ let ocrWorker = null;
 let busy = false;
 let batchAborted = false;
 
+async function terminateOcrWorker() {
+  if (!ocrWorker) return;
+  try {
+    await ocrWorker.terminate();
+  } catch {
+    /* ignore */
+  }
+  ocrWorker = null;
+}
+
+window.addEventListener("pagehide", () => {
+  void terminateOcrWorker();
+});
+
 function setStatus(text) {
   el.status.textContent = text;
 }
@@ -150,7 +164,11 @@ async function extractPage1WithOcr(page, worker, roiCfg) {
   const r1 = await ocrPage1RoiStitched(page, worker, roiCfg);
   const pRoi = parseProtocolText(r1.text);
   if (protocolStructuralOk(pRoi)) {
-    return { text: r1.text, ocrMinConfidence: r1.roiMinConfidence };
+    return {
+      text: r1.text,
+      ocrMinConfidence: r1.roiMinConfidence,
+      ocrRegionConfidence: r1.roiConfidences,
+    };
   }
   const r2 = await ocrFullPageText(page, worker);
   const pFull = parseProtocolText(r2.text);
@@ -158,6 +176,7 @@ async function extractPage1WithOcr(page, worker, roiCfg) {
   return {
     text: key === "a" ? r1.text : r2.text,
     ocrMinConfidence: key === "a" ? r1.roiMinConfidence : r2.confidence,
+    ocrRegionConfidence: key === "a" ? r1.roiConfidences : null,
   };
 }
 
@@ -165,7 +184,12 @@ async function extractPage1WithOcr(page, worker, roiCfg) {
  * @param {File} file
  * @param {import('tesseract.js').Worker} worker
  * @param {import('./roi_ocr.mjs').RoiConfig} roiCfg
- * @returns {Promise<{ text: string, pageSources: string[], ocrMinConfidence: number | null }>}
+ * @returns {Promise<{
+ *   text: string,
+ *   pageSources: string[],
+ *   ocrMinConfidence: number | null,
+ *   ocrRegionConfidence: import('./protocol_parse.mjs').RoiOcrConfidences | null,
+ * }>}
  */
 async function ocrPdfFile(file, worker, roiCfg) {
   const data = new Uint8Array(await file.arrayBuffer());
@@ -180,6 +204,8 @@ async function ocrPdfFile(file, worker, roiCfg) {
   const pageSources = [];
   /** @type {number | null} */
   let ocrMinConfidence = null;
+  /** @type {import('./protocol_parse.mjs').RoiOcrConfidences | null} */
+  let ocrRegionConfidence = null;
   function noteOcrConf(c) {
     if (c == null || !Number.isFinite(c)) return;
     ocrMinConfidence = ocrMinConfidence == null ? c : Math.min(ocrMinConfidence, c);
@@ -197,18 +223,17 @@ async function ocrPdfFile(file, worker, roiCfg) {
         const r = await extractPage1WithOcr(page, worker, roiCfg);
         text = r.text;
         noteOcrConf(r.ocrMinConfidence);
+        if (r.ocrRegionConfidence) ocrRegionConfidence = r.ocrRegionConfidence;
         source = "OCR str.1 (ROI, ewentualnie pełna strona)";
       } else {
-        const r = await ocrFullPageText(page, worker);
-        text = r.text;
-        noteOcrConf(r.confidence);
-        source = "OCR (skan lub brak tekstu)";
+        text = "";
+        source = "pominięto (brak warstwy tekstowej; OCR tylko str. 1 — protokół)";
       }
     }
     parts.push(text);
     pageSources.push(source);
   }
-  return { text: parts.join("\n\n"), pageSources, ocrMinConfidence };
+  return { text: parts.join("\n\n"), pageSources, ocrMinConfidence, ocrRegionConfidence };
 }
 
 function localDateYmd(d = new Date()) {
@@ -352,11 +377,8 @@ async function runQueue(jobs, dirHandle) {
       const job = jobs[i];
       try {
         const file = await job.getFile();
-        const { text: fullText, pageSources, ocrMinConfidence } = await ocrPdfFile(
-          file,
-          worker,
-          roiCfg
-        );
+        const { text: fullText, pageSources, ocrMinConfidence, ocrRegionConfidence } =
+          await ocrPdfFile(file, worker, roiCfg);
         appendLog(`═══ ${job.excelName} ═══\n`);
         pageSources.forEach((src, idx) => {
           appendLog(`  strona ${idx + 1}: ${src}\n`);
@@ -369,6 +391,7 @@ async function runQueue(jobs, dirHandle) {
         const parsed = parseProtocolText(fullText);
         const quality = protocolReadoutQuality(parsed, {
           ocrMinConfidence: ocrMinConfidence ?? undefined,
+          ocrRegionConfidence: ocrRegionConfidence ?? undefined,
           confidenceMin,
         });
         appendLog(

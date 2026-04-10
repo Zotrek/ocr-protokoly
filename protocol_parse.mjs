@@ -4,14 +4,17 @@
  */
 
 /** @typedef {{ numer_zlecenia: string, przewoznik: string, plomby: string[], uwagi_parse: string[] }} ProtocolFields */
+/** @typedef {{ numer_zlecenia: number, przewoznik: number, lista_plomb: number }} RoiOcrConfidences */
 
 const RE_ZLECENIE = /Zlecenie\s+transportowe\s+nr\s*:\s*(\d+)/i;
-const RE_PRZEWOZ_START = /Przewoźnik\s*:\s*/i;
+/** OCR często bez „ó” / „ź” */
+const RE_PRZEWOZ_START = /(?:Przewoznik|Przewoźnik)\s*:\s*/i;
 const RE_MIEJSCE_DOSTAWY = /Miejsce\s+dostawy\s*:/i;
-const RE_LISTA_PLOMB = /Lista\s+odebranych\s+plomb\s*:/i;
+/** Nagłówek listy — tolerancja na „plomby”, błędne ostatnie litery z OCR */
+const RE_LISTA_PLOMB = /Lista\s+odebranych\s+plom[a-z]*\s*:/i;
 const RE_UWAGI = /^Uwagi\s*:/im;
-/** 15 cyfr jak w próbkach; na produkcji doprecyzować stałą długość */
-const RE_PLOMBA_WIERSZ = /^\s*(\d+)\.\s*(\d{12,18})\s*$/;
+/** Numery z ewentualnymi spacjami w środku (OCR); po czyszczeniu 12–18 cyfr */
+const RE_PLOMBA_WIERSZ = /^\s*(\d+)\.\s*((?:\d|\s){12,40})\s*$/;
 
 /** Średnia pewność Tesseract (0–100); poniżej → problematyczne (spec §4). */
 export const OCR_CONFIDENCE_MIN = 55;
@@ -48,7 +51,9 @@ export function parseProtocolText(raw) {
     const lines = tail.split("\n");
     for (const line of lines) {
       const m = line.match(RE_PLOMBA_WIERSZ);
-      if (m) plomby.push(m[2]);
+      if (!m) continue;
+      const digits = m[2].replace(/\s+/g, "");
+      if (/^\d{12,18}$/.test(digits)) plomby.push(digits);
     }
   }
 
@@ -86,7 +91,11 @@ export function protocolStructuralOk(parsed) {
 /**
  * Kwalifikacja do folderu done / problematyczne i treść kolumny Uwagi_odczyt (spec §3–4).
  * @param {ProtocolFields} parsed
- * @param {{ ocrMinConfidence?: number | null, confidenceMin?: number }} [meta]
+ * @param {{
+ *   ocrMinConfidence?: number | null,
+ *   confidenceMin?: number,
+ *   ocrRegionConfidence?: RoiOcrConfidences | null,
+ * }} [meta]
  */
 export function protocolReadoutQuality(parsed, meta = {}) {
   const issues = [];
@@ -95,19 +104,33 @@ export function protocolReadoutQuality(parsed, meta = {}) {
   if (parsed.plomby.length === 0) issues.push("brak_plomb");
   const badPlomby = parsed.plomby.filter((p) => !isPlombaFormatSample(p));
   if (badPlomby.length) issues.push("plomba_format");
-  const oc = meta.ocrMinConfidence;
   const threshold =
     typeof meta.confidenceMin === "number" && Number.isFinite(meta.confidenceMin)
       ? meta.confidenceMin
       : OCR_CONFIDENCE_MIN;
-  if (oc != null && Number.isFinite(oc) && oc < threshold) {
-    issues.push(`niski_confidence_ocr(${Math.round(oc)})`);
+  const orc = meta.ocrRegionConfidence;
+  if (orc && typeof orc === "object") {
+    /** @type {(keyof RoiOcrConfidences)[]} */
+    const keys = ["numer_zlecenia", "przewoznik", "lista_plomb"];
+    for (const k of keys) {
+      const c = orc[k];
+      if (typeof c === "number" && Number.isFinite(c) && c < threshold) {
+        issues.push(`niski_confidence_ocr_roi_${k}(${Math.round(c)})`);
+      }
+    }
+  } else {
+    const oc = meta.ocrMinConfidence;
+    if (oc != null && Number.isFinite(oc) && oc < threshold) {
+      issues.push(`niski_confidence_ocr(${Math.round(oc)})`);
+    }
   }
   const ok = issues.length === 0;
   return {
     ok,
     destSubfolder: ok ? "done" : "problematyczne",
     uwagi_excel: ok ? "ok" : issues.join("; "),
+    /** Tokeny zgodne z `uwagi_excel` (split po `"; "`); do Excela i testów. */
+    issues,
   };
 }
 

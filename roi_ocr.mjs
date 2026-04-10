@@ -3,15 +3,32 @@
  */
 
 /** @typedef {{ left: number, top: number, width: number, height: number }} NormRect */
-/** @typedef {{ margin?: number, regions_norm: Record<string, NormRect> }} RoiConfig */
+/**
+ * @typedef {{
+ *   margin?: number,
+ *   narrow_page_width_pt_max?: number,
+ *   aspect_ratio_narrow_max?: number,
+ *   regions_norm: Record<string, NormRect>,
+ *   regions_norm_narrow?: Record<string, NormRect>,
+ * }} RoiConfig
+ */
+
+const FALLBACK_NARROW = {
+  numer_zlecenia: { left: 0.065, top: 0.048, width: 0.4, height: 0.068 },
+  przewoznik: { left: 0.065, top: 0.115, width: 0.9, height: 0.115 },
+  lista_plomb: { left: 0.065, top: 0.395, width: 0.4, height: 0.54 },
+};
 
 export const ROI_DEFAULT_FALLBACK = /** @type {RoiConfig} */ ({
-  margin: 0.02,
+  margin: 0.028,
+  narrow_page_width_pt_max: 585,
+  aspect_ratio_narrow_max: 0.72,
   regions_norm: {
-    numer_zlecenia: { left: 0.1, top: 0.06, width: 0.34, height: 0.055 },
-    przewoznik: { left: 0.1, top: 0.13, width: 0.82, height: 0.095 },
-    lista_plomb: { left: 0.1, top: 0.43, width: 0.32, height: 0.49 },
+    numer_zlecenia: { left: 0.09, top: 0.055, width: 0.36, height: 0.06 },
+    przewoznik: { left: 0.09, top: 0.125, width: 0.84, height: 0.1 },
+    lista_plomb: { left: 0.09, top: 0.415, width: 0.34, height: 0.52 },
   },
+  regions_norm_narrow: { ...FALLBACK_NARROW },
 });
 
 /**
@@ -25,8 +42,39 @@ export async function loadRoiDefault(baseUrl = "") {
     if (!r.ok) throw new Error(String(r.status));
     return await r.json();
   } catch {
-    return { ...ROI_DEFAULT_FALLBACK, regions_norm: { ...ROI_DEFAULT_FALLBACK.regions_norm } };
+    return {
+      ...ROI_DEFAULT_FALLBACK,
+      regions_norm: { ...ROI_DEFAULT_FALLBACK.regions_norm },
+      regions_norm_narrow: { ...ROI_DEFAULT_FALLBACK.regions_norm_narrow },
+    };
   }
+}
+
+/**
+ * Węższa strona (np. skan ~578×824) — inne ROI niż A4 (~595×842).
+ * @param {RoiConfig} cfg
+ * @param {number} viewportWidth
+ * @param {number} viewportHeight
+ * @returns {Record<string, NormRect>}
+ */
+export function pickRegionsNormForViewport(cfg, viewportWidth, viewportHeight) {
+  const narrow = cfg.regions_norm_narrow;
+  if (!narrow || !Object.keys(narrow).length) return cfg.regions_norm;
+
+  const wMax = cfg.narrow_page_width_pt_max;
+  if (typeof wMax === "number" && Number.isFinite(wMax)) {
+    return viewportWidth < wMax ? narrow : cfg.regions_norm;
+  }
+
+  const ar = viewportWidth / viewportHeight;
+  const arMax =
+    typeof cfg.aspect_ratio_narrow_max === "number" && Number.isFinite(cfg.aspect_ratio_narrow_max)
+      ? cfg.aspect_ratio_narrow_max
+      : 0.72;
+  if (ar < arMax) {
+    return narrow;
+  }
+  return cfg.regions_norm;
 }
 
 /**
@@ -95,9 +143,10 @@ export async function ocrPage1RoiStitched(page, worker, cfg) {
   await page.render({ canvasContext: ctx, viewport }).promise;
 
   const margin = cfg.margin ?? 0.02;
-  const { regions_norm } = cfg;
   const w = canvas.width;
   const h = canvas.height;
+  const vp1 = page.getViewport({ scale: 1 });
+  const regions_norm = pickRegionsNormForViewport(cfg, vp1.width, vp1.height);
 
   /** @param {string} key */
   async function ocrRegion(key) {
@@ -112,6 +161,12 @@ export async function ocrPage1RoiStitched(page, worker, cfg) {
   const p = await ocrRegion("przewoznik");
   const l = await ocrRegion("lista_plomb");
   const roiMinConfidence = Math.min(z.confidence, p.confidence, l.confidence);
+  /** Pewność Tesseract per wycinek ROI (str. 1) — do progów w `protocolReadoutQuality`. */
+  const roiConfidences = {
+    numer_zlecenia: z.confidence,
+    przewoznik: p.confidence,
+    lista_plomb: l.confidence,
+  };
 
   const zRaw = z.text;
   const pRaw = p.text;
@@ -122,7 +177,7 @@ export async function ocrPage1RoiStitched(page, worker, cfg) {
   const listBlock = /lista\s+odebranych\s+plomb/i.test(lRaw) ? lRaw : `Lista odebranych plomb:\n${lRaw}`;
 
   const text = [zLine, "", pLine, "", listBlock].join("\n");
-  return { text, roiMinConfidence };
+  return { text, roiMinConfidence, roiConfidences };
 }
 
 /**

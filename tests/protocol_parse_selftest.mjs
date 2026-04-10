@@ -35,13 +35,30 @@ assert.ok(protocolStructuralOk(p));
 const qOk = protocolReadoutQuality(p);
 assert.ok(qOk.ok);
 assert.equal(qOk.destSubfolder, "done");
+assert.deepEqual(qOk.issues, []);
 
 const qLowConf = protocolReadoutQuality(p, { ocrMinConfidence: 40, confidenceMin: 50 });
 assert.ok(!qLowConf.ok);
 assert.match(qLowConf.uwagi_excel, /niski_confidence_ocr\(40\)/);
+assert.ok(qLowConf.issues.some((i) => i.startsWith("niski_confidence_ocr(")));
 
 const qHighConf = protocolReadoutQuality(p, { ocrMinConfidence: 60, confidenceMin: 50 });
 assert.ok(qHighConf.ok);
+
+const qRoiLista = protocolReadoutQuality(p, {
+  ocrRegionConfidence: { numer_zlecenia: 80, przewoznik: 80, lista_plomb: 40 },
+  confidenceMin: 50,
+  ocrMinConfidence: 40,
+});
+assert.ok(!qRoiLista.ok);
+assert.ok(qRoiLista.issues.some((i) => /niski_confidence_ocr_roi_lista_plomb/.test(i)));
+assert.ok(!qRoiLista.issues.some((i) => i.startsWith("niski_confidence_ocr(")));
+
+const qRoiOk = protocolReadoutQuality(p, {
+  ocrRegionConfidence: { numer_zlecenia: 80, przewoznik: 80, lista_plomb: 70 },
+  confidenceMin: 50,
+});
+assert.ok(qRoiOk.ok);
 
 assert.equal(OCR_CONFIDENCE_MIN, 55);
 
@@ -75,5 +92,34 @@ Lista odebranych plomb:
 `);
 assert.equal(ocrLike.numer_zlecenia, "99");
 assert.deepEqual(ocrLike.plomby, ["700000000340087"]);
+
+const spacedPlomb = parseProtocolText(`
+Zlecenie transportowe nr: 5
+Przewoznik: Firma
+Miejsce dostawy: X
+Lista odebranych plomb:
+1. 7000 0000 0340 087
+`);
+assert.equal(spacedPlomb.numer_zlecenia, "5");
+assert.deepEqual(spacedPlomb.plomby, ["700000000340087"]);
+
+const asciiCarrier = parseProtocolText(`
+Zlecenie transportowe nr: 6
+Przewoznik: ABC Sp. z o.o.
+Miejsce dostawy: Y
+Lista odebranych plomb:
+1. 700000000340087
+`);
+assert.ok(asciiCarrier.przewoznik.includes("ABC"));
+assert.deepEqual(asciiCarrier.plomby, ["700000000340087"]);
+
+const listaPlomby = parseProtocolText(`
+Zlecenie transportowe nr: 7
+Przewoźnik: Z
+Miejsce dostawy: W
+Lista odebranych plomby:
+1. 700000000340087
+`);
+assert.deepEqual(listaPlomby.plomby, ["700000000340087"]);
 
 console.log("protocol_parse_selftest: OK");
