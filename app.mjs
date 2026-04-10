@@ -6,6 +6,7 @@ import {
   pickBetterParsedKey,
   protocolStructuralOk,
   nativeTextLooksLikeProtocol,
+  nativeTextHasListaPlomb,
   OCR_CONFIDENCE_MIN,
 } from "./protocol_parse.mjs";
 import { loadRoiDefault, ocrPage1RoiStitched, ocrFullPageText } from "./roi_ocr.mjs";
@@ -253,7 +254,9 @@ async function ocrPdfFile(file, worker, roiCfg) {
     let source = "warstwa PDF";
     const nativeLen = text.trim().length;
     const ocrNeeded =
-      nativeLen === 0 || (p === 1 && !nativeTextLooksLikeProtocol(text));
+      nativeLen === 0 ||
+      (p === 1 && !nativeTextLooksLikeProtocol(text)) ||
+      (p > 1 && nativeLen > 0 && !nativeTextHasListaPlomb(text));
     if (ocrNeeded) {
       if (p === 1) {
         const r = await extractPage1WithOcr(page, worker, roiCfg);
@@ -265,7 +268,10 @@ async function ocrPdfFile(file, worker, roiCfg) {
         const r = await ocrFullPageText(page, worker);
         text = r.text;
         noteOcrConf(r.confidence);
-        source = `OCR str.${p} (pełna strona)`;
+        source =
+          nativeLen > 0
+            ? `OCR str.${p} (pełna strona; warstwa PDF bez listy plomb)`
+            : `OCR str.${p} (pełna strona)`;
       }
     }
     parts.push(text);

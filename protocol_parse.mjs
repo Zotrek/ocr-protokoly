@@ -89,6 +89,15 @@ export function nativeTextLooksLikeProtocol(s) {
 }
 
 /**
+ * Czy warstwa tekstowa strony zawiera nagłówek listy plomb (wg tego samego wzorca co parser).
+ * Używane przy decyzji OCR str. 2+ gdy skaner dopisuje bezużyteczny tekst zamiast treści z obrazu.
+ * @param {string} s
+ */
+export function nativeTextHasListaPlomb(s) {
+  return RE_LISTA_PLOMB.test(s);
+}
+
+/**
  * Wyciąga numery plomb z jednego lub wielu bloków „Lista odebranych…” (wielokolumnowe wiersze).
  * @param {string} segmentNormalized
  * @returns {string[]}

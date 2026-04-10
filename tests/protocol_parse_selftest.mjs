@@ -9,6 +9,7 @@ import {
   protocolReadoutQuality,
   pickBetterParsedKey,
   nativeTextLooksLikeProtocol,
+  nativeTextHasListaPlomb,
   OCR_CONFIDENCE_MIN,
 } from "../protocol_parse.mjs";
 import { normalizeExcelRow, buildExcelRows } from "../export_xlsx.mjs";
@@ -18,6 +19,9 @@ assert.ok(nativeTextLooksLikeProtocol(LONG_NATIVE));
 const LONG_NATIVE_OGONEK = LONG_NATIVE.replace("Przewoznik:", "Przewoźnik:");
 assert.ok(nativeTextLooksLikeProtocol(LONG_NATIVE_OGONEK));
 assert.ok(!nativeTextLooksLikeProtocol("Zlecenie transportowe nr: 1\nPrzewoznik: X\nLista odebranych plomb:\n1. 700000000340087\n"));
+
+assert.ok(nativeTextHasListaPlomb("Lista odebranych plomb:\n1. x"));
+assert.ok(!nativeTextHasListaPlomb("same random chars no header"));
 
 const SYNTH = `Zlecenie transportowe nr: 42
 
