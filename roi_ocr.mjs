@@ -157,7 +157,12 @@ export async function recognizeCanvasWithConfidence(worker, canvas) {
  * @param {import('pdfjs-dist').PDFPageProxy} page
  * @param {import('tesseract.js').Worker} worker
  * @param {RoiConfig} cfg
- * @returns {Promise<{ text: string, roiMinConfidence: number }>}
+ * @returns {Promise<{
+ *   text: string,
+ *   roiMinConfidence: number,
+ *   roiConfidences: import('./protocol_parse.mjs').RoiOcrConfidences,
+ *   roiRawTexts: import('./protocol_parse.mjs').RoiOcrRawTexts,
+ * }>}
  */
 export async function ocrPage1RoiStitched(page, worker, cfg) {
   const scale = 2;
@@ -205,7 +210,8 @@ export async function ocrPage1RoiStitched(page, worker, cfg) {
   const listBlock = RE_LISTA_PLOMB.test(lRaw) ? lRaw : `Lista odebranych plomb:\n${lRaw}`;
 
   const text = [zLine, "", pLine, "", listBlock].join("\n");
-  return { text, roiMinConfidence, roiConfidences };
+  const roiRawTexts = { numer_zlecenia: zRaw, przewoznik: pRaw, lista_plomb: lRaw };
+  return { text, roiMinConfidence, roiConfidences, roiRawTexts };
 }
 
 /**

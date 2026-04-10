@@ -53,4 +53,11 @@ const uwZ = excelUwagiForSealRow(qZlecFormat);
 assert.match(uwZ, new RegExp(`numer zlecenia: oczekiwano ${ZLECENIE_LEN_MIN}–${ZLECENIE_LEN_MAX} cyfr`));
 assert.match(uwZ, /część numerów plomb pominięta/);
 
+const uwHand = excelUwagiForSealRow({
+  ok: false,
+  issues: ["podejrzenie_odreczne_roi_lista_plomb"],
+  uwagi_excel: "podejrzenie_odreczne_roi_lista_plomb",
+});
+assert.match(uwHand, /ROI lista plomb: podejrzenie/);
+
 console.log("excel_export_selftest: OK");

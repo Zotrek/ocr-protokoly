@@ -15,6 +15,4 @@ Uruchomienie lokalne (bez `file://` — potrzebny **http://127.0.0.1** lub HTTPS
 - Windows: [`tools/start_local.bat`](tools/start_local.bat) (Python w PATH).
 - Ręcznie: z katalogu projektu `python3 -m http.server 8765`, potem w przeglądarce `http://127.0.0.1:8765`.
 
-Opcjonalnie **filtr nazwy** pliku PDF w UI.
-
 Testy bez PDF: `node tests/protocol_parse_selftest.mjs`, `node tests/folder_jobs_selftest.mjs`, `node tests/pdf_errors_selftest.mjs`, `node tests/excel_export_selftest.mjs`

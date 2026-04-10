@@ -94,7 +94,7 @@ Plik trafia do **`done`** tylko wtedy, gdy **wszystkie** pola krytyczne spełnia
 
 ## 5. UX: progress
 
-1. **Krok startowy:** po wybraniu folderu — **policzenie plików PDF** (np. tylko `*.pdf`, ewentualnie filtr nazwy — do ustalenia).
+1. **Krok startowy:** po wybraniu folderu — **policzenie plików PDF** (np. tylko `*.pdf` w katalogu / z podfolderami wg opcji).
 2. Wyświetlenie **liczby plików** do obróbki (np. „Znaleziono N plików PDF”).
 3. W trakcie przetwarzania: **pasek postępu** (np. `przetworzono k z N`) aktualizowany **po zakończeniu obróbki każdego pliku** (nie tylko na końcu całego batcha).
 4. Opcjonalnie (później): możliwość przerwania; log błędów przy uszkodzonym PDF — do rozszerzenia specyfikacji.
@@ -169,8 +169,10 @@ Plik trafia do **`done`** tylko wtedy, gdy **wszystkie** pola krytyczne spełnia
 | 2026-04-10 | §7: `nativeTextLooksLikeProtocol`; wyjątek OCR str. 2 przy braku plomb i pustej warstwie str. 2. |
 | 2026-04-10 | §1: dopisek o Firefoxie (OCR + Excel przez pobranie; FSA tylko Chrome/Edge). |
 | 2026-04-10 | §7: OCR str. 2+ przy braku tekstu; wiele protokołów (`segments`); lista wielokolumnowa w wierszu. |
-| 2026-04-10 | §7: preprocess rastra przed OCR; filtr nazwy pliku; wiersze Excel dla plomb poza 15 cyframi. |
+| 2026-04-10 | §7: preprocess rastra przed OCR; wiersze Excel dla plomb poza 15 cyframi. |
 | 2026-04-10 | §7: OCR str. 2+ gdy warstwa PDF bez nagłówka listy plomb (`nativeTextHasListaPlomb`). |
 | 2026-04-10 | §8: progi per pole dla ROI str. 1 (opcjonalnie w UI); pełna strona — próg ogólny. |
 | 2026-04-10 | §8: częściowa walidacja długości `numer_zlecenia` (POC); `folder_jobs.mjs` dla listy PDF z `webkitdirectory`. |
 | 2026-04-10 | `HOSTING.md`: przykładowy CSP; nagłówek listy plomb — warianty OCR w `RE_LISTA_PLOMB`. |
+| 2026-04-10 | §4: heurystyka „podejrzenie dopisku” na podstawie szumu znaków w surowym OCR ROI (POC). |
+| 2026-04-10 | §5: bez filtra nazwy pliku w UI (wszystkie `.pdf` z wybranego zakresu folderu). |

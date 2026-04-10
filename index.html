@@ -93,25 +93,6 @@
         line-height: 1.2;
       }
 
-      .lead {
-        margin: 0;
-        color: var(--text-muted);
-        font-size: 0.95rem;
-        max-width: 52ch;
-      }
-
-      .lead .lead-sub {
-        display: block;
-        margin-top: 0.55rem;
-        font-size: 0.88em;
-        line-height: 1.45;
-        color: var(--text-muted);
-      }
-
-      .lead .lead-sub code {
-        font-family: var(--mono);
-        font-size: 0.88em;
-      }
 
       .panel {
         background: var(--surface);
@@ -250,29 +231,10 @@
         font-size: 0.78rem;
       }
 
-      .field-hint {
-        margin: 0;
-        font-size: 0.75rem;
-        line-height: 1.4;
-        color: var(--text-muted);
-        max-width: 38rem;
-      }
-
       .options-row input[type="checkbox"] {
         width: 1rem;
         height: 1rem;
         accent-color: var(--accent-dim);
-      }
-
-      .options-row input[type="text"]#inpNameFilter {
-        width: min(14rem, 100%);
-        padding: 0.25rem 0.45rem;
-        font-family: var(--mono);
-        font-size: 0.82rem;
-        border: 1px solid var(--border);
-        border-radius: 6px;
-        background: var(--bg-elevated);
-        color: var(--text);
       }
 
       .options-row input[type="number"] {
@@ -291,13 +253,6 @@
         opacity: 0.95;
       }
 
-      .hint {
-        margin: 0.85rem 0 0;
-        font-size: 0.85rem;
-        color: var(--text-muted);
-        text-align: center;
-        line-height: 1.4;
-      }
 
       .status-row {
         display: flex;
@@ -339,49 +294,6 @@
         border-radius: 999px;
       }
 
-      #log {
-        white-space: pre-wrap;
-        word-break: break-word;
-        font-family: var(--mono);
-        font-size: 0.75rem;
-        line-height: 1.5;
-        background: var(--bg-elevated);
-        color: var(--text);
-        padding: 1rem;
-        border-radius: var(--radius-sm);
-        border: 1px solid var(--border);
-        max-height: 22rem;
-        overflow: auto;
-        margin: 0;
-      }
-
-      .log-header {
-        display: flex;
-        flex-wrap: wrap;
-        align-items: center;
-        justify-content: space-between;
-        gap: 0.5rem;
-        margin-bottom: 0.75rem;
-      }
-
-      .log-header h2 {
-        margin: 0;
-      }
-
-      .btn-inline {
-        width: auto;
-        margin-top: 0;
-        padding: 0.45rem 0.85rem;
-        font-size: 0.82rem;
-      }
-
-      .log-actions {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 0.35rem;
-        align-items: center;
-      }
-
       .kbd-hint {
         margin: 0;
         font-size: 0.8rem;
@@ -404,10 +316,6 @@
       <header class="hero">
         <span class="badge">Wersja POC</span>
         <h1>OCR protokołów</h1>
-        <p class="lead">
-          Wybierz <strong>folder</strong> z plikami PDF — przetwarzanie w kolejce, jeden silnik OCR (polski).
-          <span class="lead-sub">Działa też w <strong>Firefoxie</strong> — Excel przez pobranie; przenoszenie PDF do <code>done</code> / <code>problematyczne</code> wymaga Chrome lub Edge (File System Access).</span>
-        </p>
       </header>
 
       <section class="panel">
@@ -424,10 +332,6 @@
             Szukaj PDF w podfolderach (pomijane: <code style="font-family: var(--mono); font-size: 0.8em">done</code>,
             <code style="font-family: var(--mono); font-size: 0.8em">problematyczne</code>)
           </label>
-          <label title="Tylko pliki PDF, których nazwa (bez ścieżki podfolderu) zawiera wpisany tekst; bez rozróżniania wielkości liter. Puste = wszystkie.">
-            Filtr nazwy
-            <input type="text" id="inpNameFilter" maxlength="120" placeholder="np. faktura" autocomplete="off" />
-          </label>
           <div class="ocr-threshold-block">
             <label
               for="inpOcrMin"
@@ -442,12 +346,8 @@
               max="100"
               step="1"
               value="55"
-              aria-describedby="hintOcrMin"
-              title="Skala 0–100 (pewność Tesseract): dla pliku używana jest najniższa wartość z przebiegów OCR. Poniżej progu → folder problematyczne, nawet przy poprawnym tekście. Przy PDF z samą warstwą tekstową (bez OCR) próg nie obowiązuje. Dłuższy opis: najedź kursorem na etykietę „Próg OCR”."
+              title="Skala 0–100 (pewność Tesseract): dla pliku używana jest najniższa wartość z przebiegów OCR. Poniżej progu → folder problematyczne, nawet przy poprawnym tekście. Przy PDF z samą warstwą tekstową (bez OCR) próg nie obowiązuje. Przy OCR ROI str. 1 możesz ustawić osobne progi poniżej (puste = jak próg ogólny)."
             />
-            <p id="hintOcrMin" class="field-hint" role="note">
-              Wartość 0–100. Pełny opis działania progu — <strong>podpowiedź po najechaniu</strong> na etykietę „Próg OCR” lub na pole obok. Gdy używany jest <strong>OCR ROI str. 1</strong>, możesz ustawić osobne progi poniżej (puste = jak próg ogólny).
-            </p>
           </div>
         </div>
         <div class="ocr-roi-row" role="group" aria-label="Opcjonalne progi pewności OCR dla regionów strony 1">
@@ -467,7 +367,6 @@
             <input type="number" id="inpOcrRoiPrzewoznik" min="0" max="100" step="1" placeholder="—" inputmode="numeric" />
           </label>
         </div>
-        <p class="hint" id="hintBrowserMode"></p>
       </section>
 
       <section class="panel status-row">
@@ -476,16 +375,6 @@
         <p class="kbd-hint">Podczas obróbki: <kbd>Esc</kbd> — przerwij batch (jak przycisk „Przerwij”).</p>
       </section>
 
-      <section class="panel">
-        <div class="log-header">
-          <h2>Podgląd rozpoznanego tekstu</h2>
-          <div class="log-actions" role="group" aria-label="Akcje logu">
-            <button type="button" class="btn-secondary btn-inline" id="btnLogClear">Wyczyść</button>
-            <button type="button" class="btn-secondary btn-inline" id="btnLogDownload">Pobierz log (.txt)</button>
-          </div>
-        </div>
-        <pre id="log"></pre>
-      </section>
     </div>
 
     <input type="file" id="inputDir" multiple hidden webkitdirectory mozdirectory directory />

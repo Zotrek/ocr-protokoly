@@ -18,9 +18,21 @@ const RE_PLOMBA_RAW_NOT_EXCEL = new RegExp(
 /**
  * @param {string} issue
  */
+const PODEJRZENIE_ODRECZNE_LABELS = /** @type {const} */ ({
+  podejrzenie_odreczne_roi_numer_zlecenia: "ROI numer zlecenia: podejrzenie dopisku odręcznego lub szumu OCR (heurystyka POC)",
+  podejrzenie_odreczne_roi_przewoznik: "ROI przewoźnik: podejrzenie dopisku odręcznego lub szumu OCR (heurystyka POC)",
+  podejrzenie_odreczne_roi_lista_plomb: "ROI lista plomb: podejrzenie dopisku odręcznego lub szumu OCR (heurystyka POC)",
+});
+
+/**
+ * @param {string} issue
+ */
 function issueLabelForSealRowUwagi(issue) {
   if (issue === "zlecenie_format") {
     return `numer zlecenia: oczekiwano ${ZLECENIE_LEN_MIN}–${ZLECENIE_LEN_MAX} cyfr (POC)`;
+  }
+  if (issue in PODEJRZENIE_ODRECZNE_LABELS) {
+    return /** @type {Record<string, string>} */ (PODEJRZENIE_ODRECZNE_LABELS)[issue];
   }
   return issue;
 }

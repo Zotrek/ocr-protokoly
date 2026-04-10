@@ -25,19 +25,14 @@ pdfjsLib.GlobalWorkerOptions.workerSrc =
 const el = {
   status: document.getElementById("status"),
   prog: document.getElementById("prog"),
-  log: document.getElementById("log"),
   btnDir: document.getElementById("btnDir"),
   btnStop: document.getElementById("btnStop"),
-  btnLogDownload: document.getElementById("btnLogDownload"),
-  btnLogClear: document.getElementById("btnLogClear"),
   chkRecurse: document.getElementById("chkRecurse"),
   inpOcrMin: document.getElementById("inpOcrMin"),
   inpOcrRoiZlecenie: document.getElementById("inpOcrRoiZlecenie"),
   inpOcrRoiLista: document.getElementById("inpOcrRoiLista"),
   inpOcrRoiPrzewoznik: document.getElementById("inpOcrRoiPrzewoznik"),
-  inpNameFilter: document.getElementById("inpNameFilter"),
   inputDir: document.getElementById("inputDir"),
-  hintBrowserMode: document.getElementById("hintBrowserMode"),
 };
 
 /** Czy pełny tryb: zapis Excela w folderze + przenoszenie PDF (File System Access). */
@@ -45,18 +40,6 @@ function hasFileSystemAccessFolderPicker() {
   return typeof window.showDirectoryPicker === "function";
 }
 
-function initBrowserModeHint() {
-  const p = el.hintBrowserMode;
-  if (!p) return;
-  const mono = 'style="font-family: var(--mono); font-size: 0.85em"';
-  if (hasFileSystemAccessFolderPicker()) {
-    p.innerHTML = `<strong>Chrome / Edge:</strong> wybór folderu z zapisem — powstanie <code ${mono}>wynik_YYYY-MM-DD.xlsx</code> w tym folderze, PDF trafią do <code ${mono}>done</code> / <code ${mono}>problematyczne</code>. Bez zaznaczenia „Szukaj w podfolderach” przetwarzane są tylko <code ${mono}>.pdf</code> z katalogu głównego.`;
-  } else {
-    p.innerHTML = `<strong>Firefox (i inne bez File System Access):</strong> wybór folderu działa przez okno systemowe; <strong>OCR i parser</strong> są takie same. Plik <code ${mono}>wynik_YYYY-MM-DD.xlsx</code> zostanie <strong>pobrany</strong> — przeglądarka nie udostępnia zapisu do wybranego katalogu ani automatycznego przenoszenia PDF do <code ${mono}>done</code> / <code ${mono}>problematyczne</code> (ta funkcja jest w Chrome / Edge na HTTPS lub <code ${mono}>localhost</code>).`;
-  }
-}
-
-initBrowserModeHint();
 
 function setBatchFormDisabled(disabled) {
   if (el.chkRecurse) el.chkRecurse.disabled = disabled;
@@ -64,8 +47,6 @@ function setBatchFormDisabled(disabled) {
   if (el.inpOcrRoiZlecenie) el.inpOcrRoiZlecenie.disabled = disabled;
   if (el.inpOcrRoiLista) el.inpOcrRoiLista.disabled = disabled;
   if (el.inpOcrRoiPrzewoznik) el.inpOcrRoiPrzewoznik.disabled = disabled;
-  if (el.inpNameFilter) el.inpNameFilter.disabled = disabled;
-  if (el.btnLogClear) el.btnLogClear.disabled = disabled;
 }
 
 const STATUS_IDLE = "Oczekuję na start.";
@@ -73,33 +54,6 @@ const LS_OCR_CONF_MIN = "ocr_proto_conf_min";
 const LS_OCR_CONF_ROI_ZLECENIE = "ocr_proto_conf_roi_numer_zlecenia";
 const LS_OCR_CONF_ROI_LISTA = "ocr_proto_conf_roi_lista_plomb";
 const LS_OCR_CONF_ROI_PRZEWOZNIK = "ocr_proto_conf_roi_przewoznik";
-const LS_NAME_FILTER = "ocr_proto_name_filter";
-
-(function initNameFilterUi() {
-  const inp = el.inpNameFilter;
-  if (!inp) return;
-  try {
-    const s = localStorage.getItem(LS_NAME_FILTER);
-    if (s != null) inp.value = s;
-  } catch {
-    /* ignore */
-  }
-  inp.addEventListener("change", () => {
-    try {
-      localStorage.setItem(LS_NAME_FILTER, inp.value);
-    } catch {
-      /* ignore */
-    }
-  });
-})();
-
-/** Czy nazwa pliku (bez ścieżki) zawiera filtr — puste pole = wszystkie. */
-function pdfFileNameMatchesFilter(excelName) {
-  const raw = el.inpNameFilter?.value?.trim().toLowerCase() ?? "";
-  if (!raw) return true;
-  const base = excelName.includes("/") ? excelName.split("/").pop() || excelName : excelName;
-  return base.toLowerCase().includes(raw);
-}
 
 (function initOcrThresholdUi() {
   const inp = el.inpOcrMin;
@@ -204,9 +158,8 @@ function setStatus(text) {
   el.status.textContent = text;
 }
 
-function appendLog(chunk) {
-  el.log.textContent += chunk;
-  el.log.scrollTop = el.log.scrollHeight;
+function appendLog(_chunk) {
+  /* log panel removed */
 }
 
 async function ensureOcrWorker() {
@@ -267,6 +220,7 @@ async function extractPage1WithOcr(page, worker, roiCfg) {
       text: r1.text,
       ocrMinConfidence: r1.roiMinConfidence,
       ocrRegionConfidence: r1.roiConfidences,
+      roiOcrRawTexts: r1.roiRawTexts,
     };
   }
   const r2 = await ocrFullPageText(page, worker);
@@ -276,6 +230,7 @@ async function extractPage1WithOcr(page, worker, roiCfg) {
     text: key === "a" ? r1.text : r2.text,
     ocrMinConfidence: key === "a" ? r1.roiMinConfidence : r2.confidence,
     ocrRegionConfidence: key === "a" ? r1.roiConfidences : null,
+    roiOcrRawTexts: key === "a" ? r1.roiRawTexts : undefined,
   };
 }
 
@@ -288,6 +243,7 @@ async function extractPage1WithOcr(page, worker, roiCfg) {
  *   pageSources: string[],
  *   ocrMinConfidence: number | null,
  *   ocrRegionConfidence: import('./protocol_parse.mjs').RoiOcrConfidences | null,
+ *   roiOcrRawTexts: import('./protocol_parse.mjs').RoiOcrRawTexts | null,
  * }>}
  */
 async function ocrPdfFile(file, worker, roiCfg) {
@@ -305,6 +261,8 @@ async function ocrPdfFile(file, worker, roiCfg) {
   let ocrMinConfidence = null;
   /** @type {import('./protocol_parse.mjs').RoiOcrConfidences | null} */
   let ocrRegionConfidence = null;
+  /** @type {import('./protocol_parse.mjs').RoiOcrRawTexts | null} */
+  let roiOcrRawTexts = null;
   function noteOcrConf(c) {
     if (c == null || !Number.isFinite(c)) return;
     ocrMinConfidence = ocrMinConfidence == null ? c : Math.min(ocrMinConfidence, c);
@@ -325,6 +283,7 @@ async function ocrPdfFile(file, worker, roiCfg) {
         text = r.text;
         noteOcrConf(r.ocrMinConfidence);
         if (r.ocrRegionConfidence) ocrRegionConfidence = r.ocrRegionConfidence;
+        if (r.roiOcrRawTexts) roiOcrRawTexts = r.roiOcrRawTexts;
         source = "OCR str.1 (ROI, ewentualnie pełna strona)";
       } else {
         const r = await ocrFullPageText(page, worker);
@@ -340,7 +299,7 @@ async function ocrPdfFile(file, worker, roiCfg) {
     pageSources.push(source);
   }
   const fullText = parts.join("\n\n");
-  return { text: fullText, pageSources, ocrMinConfidence, ocrRegionConfidence };
+  return { text: fullText, pageSources, ocrMinConfidence, ocrRegionConfidence, roiOcrRawTexts };
 }
 
 function localDateYmd(d = new Date()) {
@@ -424,13 +383,8 @@ async function collectJobsFromDirectoryHandle(root, recurse) {
  * @param {PdfJob[]} jobs
  * @param {FileSystemDirectoryHandle | null} dirHandle
  */
-async function runQueue(rawJobs, dirHandle) {
+async function runQueue(jobs, dirHandle) {
   if (busy) return;
-  const jobs = rawJobs.filter((j) => pdfFileNameMatchesFilter(j.excelName));
-  if (rawJobs.length > 0 && jobs.length === 0) {
-    setStatus("Żaden plik PDF nie pasuje do filtra nazwy — wyczyść lub zmień pole „Filtr nazwy”.");
-    return;
-  }
   if (jobs.length === 0) {
     setStatus("Brak plików PDF do obróbki.");
     return;
@@ -440,7 +394,6 @@ async function runQueue(rawJobs, dirHandle) {
   el.btnDir.disabled = true;
   el.btnStop.disabled = false;
   setBatchFormDisabled(true);
-  el.log.textContent = "";
   el.prog.max = jobs.length;
   el.prog.value = 0;
   const batchDate = localDateYmd();
@@ -463,7 +416,6 @@ async function runQueue(rawJobs, dirHandle) {
       if (v === "") localStorage.removeItem(LS_OCR_CONF_ROI_PRZEWOZNIK);
       else localStorage.setItem(LS_OCR_CONF_ROI_PRZEWOZNIK, v);
     }
-    if (el.inpNameFilter) localStorage.setItem(LS_NAME_FILTER, el.inpNameFilter.value);
   } catch {
     /* ignore */
   }
@@ -506,7 +458,7 @@ async function runQueue(rawJobs, dirHandle) {
       const job = jobs[i];
       try {
         const file = await job.getFile();
-        const { text: fullText, pageSources, ocrMinConfidence, ocrRegionConfidence } =
+        const { text: fullText, pageSources, ocrMinConfidence, ocrRegionConfidence, roiOcrRawTexts } =
           await ocrPdfFile(file, worker, roiCfg);
         appendLog(`═══ ${job.excelName} ═══\n`);
         pageSources.forEach((src, idx) => {
@@ -526,6 +478,7 @@ async function runQueue(rawJobs, dirHandle) {
         const quality = protocolReadoutQuality(parsed, {
           ocrMinConfidence: ocrMinConfidence ?? undefined,
           ocrRegionConfidence: ocrRegionConfidence ?? undefined,
+          roiOcrRawTexts: roiOcrRawTexts ?? undefined,
           confidenceMin,
           confidenceMinRoi,
         });
@@ -603,17 +556,6 @@ async function runQueue(rawJobs, dirHandle) {
 
 el.btnStop.addEventListener("click", () => {
   if (busy) batchAborted = true;
-});
-
-el.btnLogDownload?.addEventListener("click", () => {
-  const t = el.log.textContent || "";
-  const blob = new Blob([t], { type: "text/plain;charset=utf-8" });
-  downloadBlob(blob, `ocr_protokoly_log_${localDateYmd()}.txt`);
-});
-
-el.btnLogClear?.addEventListener("click", () => {
-  if (busy) return;
-  el.log.textContent = "";
 });
 
 window.addEventListener("keydown", (e) => {

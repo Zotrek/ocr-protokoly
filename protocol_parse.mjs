@@ -13,6 +13,7 @@
  * }} ProtocolFields
  */
 /** @typedef {{ numer_zlecenia: number, przewoznik: number, lista_plomb: number }} RoiOcrConfidences */
+/** @typedef {{ numer_zlecenia: string, przewoznik: string, lista_plomb: string }} RoiOcrRawTexts */
 
 /** Docelowa liczba cyfr numeru zlecenia (POC — do skorygowania po próbkach). */
 export const ZLECENIE_LEN_MIN = 1;
@@ -39,6 +40,24 @@ export function isZlecenieFormatSample(s) {
   const t = typeof s === "string" ? s.trim() : "";
   if (!t) return false;
   return RE_ZLECENIE_DIGITS.test(t);
+}
+
+/** Znaki uznawane za typowe w surowym OCR ROI (cyfry, PL, podstawowa interpunkcja). */
+const RE_ROI_CHAR_OK = /[\d\s\n\r\t.,\-:/()A-Za-zĄĆĘŁŃÓŚŹŻąćęłńóśźż]/;
+
+/**
+ * Heurystyka POC (spec §4): wysoki udział znaków „obcych” w surowym tekście wycinka ROI
+ * → plik i tak idzie do weryfikacji (`podejrzenie_odreczne_roi_*`). Nie wykrywa pisma odręcznego wprost.
+ * @param {string} text
+ */
+export function roiOcrTextSuggestsHandwritingNoise(text) {
+  const t = (text || "").trim();
+  if (t.length < 8) return false;
+  let bad = 0;
+  for (let i = 0; i < t.length; i++) {
+    if (!RE_ROI_CHAR_OK.test(t[i])) bad++;
+  }
+  return bad / t.length > 0.06;
 }
 
 /**
@@ -279,6 +298,7 @@ export function protocolStructuralOk(parsed) {
  *   confidenceMin?: number,
  *   confidenceMinRoi?: Partial<Record<keyof RoiOcrConfidences, number>> | null,
  *   ocrRegionConfidence?: RoiOcrConfidences | null,
+ *   roiOcrRawTexts?: Partial<RoiOcrRawTexts> | null,
  * }} [meta]
  */
 export function protocolReadoutQuality(parsed, meta = {}) {
@@ -323,6 +343,17 @@ export function protocolReadoutQuality(parsed, meta = {}) {
     const oc = meta.ocrMinConfidence;
     if (oc != null && Number.isFinite(oc) && oc < defaultThreshold) {
       issues.push(`niski_confidence_ocr(${Math.round(oc)})`);
+    }
+  }
+  const raws = meta.roiOcrRawTexts;
+  if (orc && typeof orc === "object" && raws && typeof raws === "object") {
+    /** @type {(keyof RoiOcrConfidences)[]} */
+    const hk = ["numer_zlecenia", "przewoznik", "lista_plomb"];
+    for (const k of hk) {
+      const txt = raws[k];
+      if (typeof txt === "string" && roiOcrTextSuggestsHandwritingNoise(txt)) {
+        issues.push(`podejrzenie_odreczne_roi_${k}`);
+      }
     }
   }
   const issueList = [...new Set(issues)];

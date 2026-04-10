@@ -17,6 +17,7 @@ import {
   ZLECENIE_LEN_MIN,
   ZLECENIE_LEN_MAX,
   isZlecenieFormatSample,
+  roiOcrTextSuggestsHandwritingNoise,
 } from "../protocol_parse.mjs";
 import { normalizeExcelRow, buildExcelRows } from "../export_xlsx.mjs";
 
@@ -103,6 +104,26 @@ const qRoiListaStrict = protocolReadoutQuality(p, {
 });
 assert.ok(!qRoiListaStrict.ok);
 assert.ok(qRoiListaStrict.issues.some((i) => /niski_confidence_ocr_roi_lista_plomb/.test(i)));
+
+assert.ok(!roiOcrTextSuggestsHandwritingNoise("12345678"));
+assert.ok(!roiOcrTextSuggestsHandwritingNoise("Lista 1."));
+assert.ok(roiOcrTextSuggestsHandwritingNoise(`ACME ${"#".repeat(25)}`));
+const qHand = protocolReadoutQuality(p, {
+  ocrRegionConfidence: { numer_zlecenia: 90, przewoznik: 90, lista_plomb: 90 },
+  roiOcrRawTexts: {
+    numer_zlecenia: "42",
+    przewoznik: "Firma OK Sp z oo",
+    lista_plomb: `Lista odebranych plomb:\n1. 700000000340087\n${"§".repeat(20)}`,
+  },
+});
+assert.ok(!qHand.ok);
+assert.ok(qHand.issues.some((i) => i === "podejrzenie_odreczne_roi_lista_plomb"));
+const qRawNoRoi = protocolReadoutQuality(p, {
+  ocrMinConfidence: 90,
+  confidenceMin: 50,
+  roiOcrRawTexts: { lista_plomb: `1. 700000000340087\n${"§".repeat(40)}` },
+});
+assert.ok(!qRawNoRoi.issues.some((i) => /podejrzenie_odreczne/.test(i)));
 
 assert.equal(OCR_CONFIDENCE_MIN, 55);
 assert.equal(PLOMBA_LEN_EXCEL, 15);
