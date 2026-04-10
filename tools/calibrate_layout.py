@@ -5,9 +5,24 @@ Wyjście: calibration/roi_hints.json — wskazówki ROI znormalizowane 0–1 pod
 (OCR na wycinkach zamiast całej strony).
 
 Wymaga w PATH: pdftotext (poppler-utils).
+
+Przykłady użycia
+----------------
+# Wszystkie PDF z domyślnego katalogu „dane testowe/" → calibration/roi_hints.json
+python3 tools/calibrate_layout.py
+
+# Wskaż inny folder źródłowy
+python3 tools/calibrate_layout.py --dir /ścieżka/do/pdf
+
+# Konkretne pliki (jeden lub kilka)
+python3 tools/calibrate_layout.py plik1.pdf plik2.pdf
+
+# Inny plik wyjściowy
+python3 tools/calibrate_layout.py --output /tmp/roi_hints.json
 """
 from __future__ import annotations
 
+import argparse
 import csv
 import json
 import subprocess
@@ -90,10 +105,12 @@ def norm_rect(
     }
 
 
-def index_containing(words: list[Word], substr: str) -> int:
-    s = substr.lower()
+def index_containing(words: list[Word], *substrings: str) -> int:
+    """Zwraca indeks pierwszego słowa zawierającego dowolny z podanych podciągów (bez rozróżniania wielkości)."""
+    needles = [s.lower() for s in substrings]
     for i, w in enumerate(words):
-        if s in w.text.lower():
+        tl = w.text.lower()
+        if any(n in tl for n in needles):
             return i
     return -1
 
@@ -111,13 +128,10 @@ def analyze_pdf(pdf_path: Path, pad: float = 0.015) -> dict:
         zlec_words = [w for w in words if abs(w.top - y0) < 3 and w.left >= words[iz].left - 5]
     zlec_box = bbox_union(zlec_words)
 
-    # --- przewoźnik: od "Przewoźnik:" do przed "Miejsce dostawy:" ---
-    ip = index_containing(words, "Przewoźnik")
-    idost2 = -1
-    for i, w in enumerate(words):
-        if "dostawy" in w.text.lower():
-            idost2 = i
-            break
+    # --- przewoźnik: od "Przewoźnik:" / "Przewoznik:" do przed "Miejsce dostawy:" ---
+    # Obsługuje wariant bez polskich znaków (częste w eksportach PDF z niektórych programów).
+    ip = index_containing(words, "Przewoźnik", "Przewoznik")
+    idost2 = index_containing(words, "dostawy")
     przew_words: list[Word] = []
     if ip >= 0:
         y_end = words[idost2].top if idost2 >= 0 else ph
@@ -126,7 +140,7 @@ def analyze_pdf(pdf_path: Path, pad: float = 0.015) -> dict:
                 przew_words.append(w)
     przew_box = bbox_union(przew_words)
 
-    # --- lista plomb: od nagłówka "Lista" / "plomb" do przed "Uwagi" lub koniec strony ---
+    # --- lista plomb: od nagłówka "Lista odebranych" do przed "Uwagi" lub koniec strony ---
     ilist = index_containing(words, "Lista")
     iuw = index_containing(words, "Uwagi")
     plomb_words: list[Word] = []
@@ -156,17 +170,60 @@ def analyze_pdf(pdf_path: Path, pad: float = 0.015) -> dict:
 
 def main() -> int:
     root = Path(__file__).resolve().parent.parent
-    data_dir = root / "dane testowe"
-    out_dir = root / "calibration"
-    out_dir.mkdir(parents=True, exist_ok=True)
-    out_path = out_dir / "roi_hints.json"
 
-    pdfs = sorted(data_dir.glob("*.pdf"))
-    if not pdfs:
-        print(f"Brak PDF w {data_dir}", file=sys.stderr)
-        return 1
+    parser = argparse.ArgumentParser(
+        description="Analiza układu strony 1 protokołu → roi_hints.json (wymaga pdftotext z poppler-utils).",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=(
+            "Przykłady:\n"
+            "  python3 tools/calibrate_layout.py\n"
+            "  python3 tools/calibrate_layout.py --dir /ścieżka/do/pdf\n"
+            "  python3 tools/calibrate_layout.py plik1.pdf plik2.pdf\n"
+            "  python3 tools/calibrate_layout.py --output /tmp/roi_hints.json\n"
+        ),
+    )
+    parser.add_argument(
+        "--dir",
+        type=Path,
+        metavar="FOLDER",
+        help=f"Folder z plikami PDF (domyślnie: {root / 'dane testowe'})",
+    )
+    parser.add_argument(
+        "--output",
+        type=Path,
+        metavar="PLIK",
+        help=f"Plik wyjściowy JSON (domyślnie: {root / 'calibration' / 'roi_hints.json'})",
+    )
+    parser.add_argument(
+        "pdfs",
+        nargs="*",
+        type=Path,
+        metavar="PDF",
+        help="Konkretne pliki PDF do analizy (jeśli nie podano — wszystkie z --dir)",
+    )
+    args = parser.parse_args()
 
-    meta = {
+    data_dir = args.dir or (root / "dane testowe")
+    out_path = args.output or (root / "calibration" / "roi_hints.json")
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+
+    if args.pdfs:
+        pdfs = sorted(Path(p).resolve() for p in args.pdfs)
+        missing = [p for p in pdfs if not p.exists()]
+        if missing:
+            for m in missing:
+                print(f"Brak pliku: {m}", file=sys.stderr)
+            return 1
+    else:
+        if not data_dir.exists():
+            print(f"Folder nie istnieje: {data_dir}", file=sys.stderr)
+            return 1
+        pdfs = sorted(data_dir.glob("*.pdf"))
+        if not pdfs:
+            print(f"Brak PDF w {data_dir}", file=sys.stderr)
+            return 1
+
+    meta: dict = {
         "source": "pdftotext -tsv, strona 1",
         "note_pl": (
             "Współrzędne 0–1 względem prostokąta strony (jak w mediabox). "
@@ -178,10 +235,13 @@ def main() -> int:
     }
 
     for p in pdfs:
-        meta["files"].append(analyze_pdf(p))
+        result = analyze_pdf(p)
+        meta["files"].append(result)
+        status = "OK" if "error" not in result else f"BŁĄD: {result['error']}"
+        print(f"  {p.name}: {status}")
 
     out_path.write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
-    print(f"Zapisano {out_path}")
+    print(f"\nZapisano {out_path}  ({len(pdfs)} plik{'i' if 1 < len(pdfs) < 5 else 'ów' if len(pdfs) != 1 else ''})")
     return 0
 
 

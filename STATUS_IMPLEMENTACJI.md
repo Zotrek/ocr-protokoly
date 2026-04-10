@@ -15,32 +15,48 @@ Krótki przegląd **co działa w POC** i **co zostaje do zrobienia** (zwłaszcza
 - **Ścieżka względna** w kolumnie `nazwa_pliku` przy PDF z podfolderów; przy przeniesieniu **unikalna nazwa** pliku (`pod__plik.pdf`).
 
 ### OCR / PDF
-- **Warstwa tekstowa PDF** (eksport Word): odczyt bez OCR, jeśli heurystyka uzna tekst za pełny protokół.
-- **Skany / brak tekstu na str. 1**: OCR strony 1 przez **ROI** (`calibration/roi_default.json` + [`roi_ocr.mjs`](roi_ocr.mjs)), przy słabej strukturze — drugi przebieg **cała strona 1**; przed OCR na rastrze — **szarość + lekki kontrast** (`enhanceCanvasForOcr` w [`roi_ocr.mjs`](roi_ocr.mjs)).
+- **Warstwa tekstowa PDF** (eksport Word): odczyt bez OCR, jeśli heurystyka uzna tekst za pełny protokół (`nativeTextLooksLikeProtocol` — wzorce `RE_ZLECENIE`, `RE_PRZEWOZ_START`, `RE_LISTA_PLOMB`).
+- **Skany / brak tekstu na str. 1**: OCR strony 1 przez **ROI** (`calibration/roi_default.json` + [`roi_ocr.mjs`](roi_ocr.mjs)), przy słabej strukturze — drugi przebieg **cała strona 1**; przed OCR — **adaptacyjny kontrast** (`enhanceCanvasForOcr` w [`roi_ocr.mjs`](roi_ocr.mjs)) dobierany na podstawie odchylenia std. jasności (1.7× dla wyblakłych 150 DPI, 1.22× dla ostrych CCF 300 DPI).
+- **Tryb segmentacji Tesseract (PSM)** per region ROI: PSM 6 (jednorodny blok) dla numeru zlecenia i przewoźnika; PSM AUTO dla listy plomb (obsługuje jedno- i dwukolumnowy układ). Skala renderowania ROI: **3×** (~216 DPI na wąskich skanach A4 vs 144 DPI przy 2×).
 - **Strony 2+** przy skanie (brak warstwy tekstowej): **OCR pełnej strony** dla każdej takiej strony (teksty łączone `\n\n` → parser). Str. 1 nadal **ROI** (+ ewentualnie pełna str. 1). Gdy strona ma **warstwę tekstową**, używany jest on zamiast OCR.
 - **Wiele protokołów w jednym PDF:** `parseProtocolText` dzieli po nagłówku `Zlecenie transportowe nr:` i zwraca **`segments`** — Excel: osobne wiersze z **numerem zlecenia / przewoźnikiem** per segment.
 - **Lista w dwóch kolumnach** (wiele `1. … 2. …` w jednym wierszu): wyciąganie plomb po **pozycjach `k.`** z zatrzymaniem przed następnym `k.` (funkcja `plombyFromListLine` w [`protocol_parse.mjs`](protocol_parse.mjs)).
-- **ROI wąska vs A4**: w `roi_default.json` jest **`narrow_page_width_pt_max`** (domyślnie **585** pt w przestrzeni PDF): strona węższa niż próg (np. skan ~578×824) używa **`regions_norm_narrow`**, szersza — **`regions_norm`**. Gdy progu szerokości **nie ma** w JSON, wybór „wąskiej” mapy pada na **`aspect_ratio_narrow_max`** (fallback).
-- **Str. 2+:** jeśli warstwa PDF jest **niepusta**, ale **bez** nagłówka listy plomb (`RE_LISTA_PLOMB` — m.in. „Lista o debranych…”, „Lista oderbranych…”) — **wymuszany OCR** pełnej strony (typowy skan z bezużytecznym tekstem).
-- **Pewność Tesseract**: przy **OCR ROI str. 1** (wybrana ścieżka ROI, nie pełna strona) — osobno **numer zlecenia / przewoźnik / lista plomb** vs próg (`niski_confidence_ocr_roi_*` w `Uwagi_odczyt`). Przy **pełnej stronie 1** lub braku mapy ROI — **jedna** wartość `niski_confidence_ocr(min)`. Próg ogólny z pola „Próg OCR" (zapisywany w `localStorage`).
-- **Podejrzenie dopisku / szumu OCR (POC):** surowe teksty ROI (`roiRawTexts` z [`roi_ocr.mjs`](roi_ocr.mjs)) — heurystyka `roiOcrTextSuggestsHandwritingNoise` w [`protocol_parse.mjs`](protocol_parse.mjs); przy ścieżce **ROI** (nie pełna str. 1) token `podejrzenie_odreczne_roi_*` → `problematyczne`; w Excelu etykiety w [`export_xlsx.mjs`](export_xlsx.mjs).
-- **Zamknięcie karty**: `pagehide` → `terminate()` workera Tesseract (zwolnienie zasobów).
+- **ROI wąska vs A4**: w `roi_default.json` jest **`narrow_page_width_pt_max: 585`** pt: strona węższa niż próg (np. CCF ~578 pt) używa **`regions_norm_narrow`**, szersza — **`regions_norm`**.
+- **Str. 2+:** jeśli warstwa PDF jest **niepusta**, ale **bez** nagłówka listy plomb (`RE_LISTA_PLOMB`) — **wymuszany OCR** pełnej strony.
+- **Pewność Tesseract**: per region ROI → `niski_confidence_ocr_roi_*`; pełna strona / str. 2+ → `niski_confidence_ocr(min)`. Próg ogólny z pola „Próg OCR" (zapisywany w `localStorage`).
+- **Podejrzenie dopisku / szumu OCR (POC):** heurystyka `roiOcrTextSuggestsHandwritingNoise` → token `podejrzenie_odreczne_roi_*` → `problematyczne`.
+- **Zamknięcie karty**: `pagehide` → `terminate()` workera Tesseract.
 - Czytelne błędy **pdf.js**: [`pdf_errors.mjs`](pdf_errors.mjs) (hasło, uszkodzony plik itd.).
 
+### Parser — wzorce dopasowane do rzeczywistych skanów CCF (kwiecień 2026)
+- **`RE_ZLECENIE`**: przechwytuje format `NNNN/YYYY` (np. `1460/2026`) oraz same cyfry; OCR-owe spacje wewnątrz numeru usuwane.
+- **`RE_LISTA_PLOMB`**: obsługuje `„Lista obsługiwanych plomb:"` (CCF), `„Lista odebranych plomb:"` i warianty z błędami OCR.
+- **`RE_PRZEWOZ_START`**: tolerancja na OCR-owe spacje i brak polskich znaków (`Przewoznik`, `Przew oznik`).
+- `isZlecenieFormatSample`: akceptuje `NNNN/YYYY` lub same cyfry.
+
+### Kalibracja ROI (na podstawie skanów CCF 300 DPI — 2409×3437 px)
+- `regions_norm` / `regions_norm_narrow`: skalibrowane na podstawie rzeczywistych pomiarów:
+  - `numer_zlecenia`: `top=3%`, `height=4%` (linia „Zlecenie transportowe nr:" na ~3.6%)
+  - `przewoznik`: `top=6.5%`, `height=5.5%` (linia „Przewoźnik:" na ~8.3%) — poprzednie wartości (11.5%) całkowicie mijały się z polem
+  - `lista_plomb`: `top=44%`, `width=63%` — pokrywa obie kolumny list (dwukolumnowy układ na dużych partiach)
+
 ### Kalibracja (dev, bez przeglądarki)
-- [`tools/calibrate_layout.py`](tools/calibrate_layout.py) + [`calibration/roi_hints.json`](calibration/roi_hints.json) (wymaga `pdftotext` z Popplera).
+- [`tools/calibrate_layout.py`](tools/calibrate_layout.py) — `argparse` z `--dir`, `--output`, pozycyjnymi `PDF`; obsługa `Przewoznik` bez ogonka.
 
 ### UX
 - Pasek postępu + **nazwa bieżącego pliku** w statusie podczas przetwarzania.
-- **Przerwij** batch + **Esc**; po przerwaniu: częściowy Excel (jeśli były wiersze), przeniesienia tylko dla przetworzonych.
-- **Podsumowanie wyników** po batchu: liczniki Done / Problematyczne / Błędy OCR / Błędy przenoszenia (chipy kolorowe, `#results`); blokada opcji (podfoldery, próg OCR) w trakcie batcha.
+- **Przerwij** batch + **Esc**; po przerwaniu: częściowy Excel (jeśli były wiersze).
+- **Podsumowanie wyników** po batchu: liczniki Done / Problematyczne / Błędy OCR / Błędy przenoszenia (chipy kolorowe).
+- **Baner folderu** z nazwą i liczbą PDF-ów; `localStorage` dla progu OCR i checkboxa „szukaj w podfolderach".
+- **Czytelne polskie etykiety** dla wszystkich tokenów `Uwagi_odczyt` (brak plomb, niski confidence, format zlecenia, itp.).
 
 ### Testy (Node, bez PDF)
-- `node tests/protocol_parse_selftest.mjs`
-- `node tests/roi_pick_selftest.mjs` (wybór `regions_norm` vs `regions_norm_narrow`)
+- `node tests/protocol_parse_selftest.mjs` — m.in. format `1460/2026`, `Lista obsługiwanych plomb:`
+- `node tests/roi_pick_selftest.mjs`
 - `node tests/pdf_errors_selftest.mjs`
 - `node tests/excel_export_selftest.mjs`
-- `node tests/folder_jobs_selftest.mjs` (ścieżki `webkitRelativePath` / Firefox)
+- `node tests/folder_jobs_selftest.mjs`
+- `bash tools/run_selftests.sh` — wszystkie 5 testów
 
 ### Dokumentacja operacyjna
 - [`README.md`](README.md), [`HOSTING.md`](HOSTING.md).
@@ -49,25 +65,14 @@ Krótki przegląd **co działa w POC** i **co zostaje do zrobienia** (zwłaszcza
 
 ## TODO / dalsza praca
 
-### Wymaga prawdziwych skanów (priorytet)
-- [x] **Przykładowe skany** w `dane testowe/` (m.in. wąska strona ~578 pt, wielostronicowe bez tekstu) — pod kątem ROI i wydajności.
-- [ ] **Próbki skanów bitowych** (kontrast, skos, zagięcia, dopiski odręczne) — dalsze edge case’y.
-- [ ] **Dopasowanie ROI** do skanów (marginesy, ewentualnie deskew / kontrast przed OCR); pierwsza iteracja: `regions_norm` / `regions_norm_narrow` + próg szerokości w pt.
-- [ ] **Ostateczna długość** `numer_zlecenia` — POC: `ZLECENIE_LEN_MIN` / `ZLECENIE_LEN_MAX` + `zlecenie_format` w [`protocol_parse.mjs`](protocol_parse.mjs) (do potwierdzenia po próbkach); **`numer_plomby`:** `PLOMBA_LEN_EXCEL` / `PLOMBA_RAW_LEN_*`.
-- [x] **Progi confidence per pole (ROI str. 1):** `confidenceMinRoi` w [`protocol_parse.mjs`](protocol_parse.mjs) (`protocolReadoutQuality`) — kod obsługuje per-ROI progi; UI uproszczone: jeden próg ogólny obowiązuje dla wszystkich regionów.
-- [x] **Dopiski odręczne / szum ROI (POC):** heurystyka na surowym OCR wycinków str. 1 (`podejrzenie_odreczne_roi_*`); **nie** wykrywa pisma odręcznego wprost — wymaga weryfikacji człowiekiem (§4).
+### Wymaga dalszych próbek i testów na żywych danych
+- [ ] **Weryfikacja ROI** na większym zbiorze skanów — ewentualne drobne korekty `top` / `height` per dokument.
+- [ ] **Deskew** (prostowanie przekrzywionych skanów) — nie wykryto w próbkach CCF, ale może wystąpić.
+- [ ] **Dokumenty bez listy plomb** (`Łączna ilość odebranych worków`) — obecne zachowanie: `brak_plomb` → `problematyczne`. Rozważyć dedykowany komunikat.
+- [ ] **Ostateczna długość `numer_zlecenia`** — potwierdzono format `NNNN/YYYY` na próbkach; może wystąpić inny zakres.
 
-### Excel / audyt (doprecyzowanie vs §3.2)
-- [x] Częściowy sukces plomb (część numerów odrzucona z powodu formatu): wiersze z **poprawnymi** 15 cyframi mają czytelną adnotację (`excelUwagiForSealRow` w [`export_xlsx.mjs`](export_xlsx.mjs)); łączenie z innymi problemami pliku (np. niski OCR) nadal w jednej kolumnie.
-- [x] Wiersze Excel dla numerów **12–18 cyfr** z listy, które **nie są** docelowym **15** cyfr: kolumna `numer_plomby` = odczyt, `Uwagi_odczyt` z adnotacją; wiersze z poprawnymi 15 cyframi bez zmian.
-
-### Produkt / techniczne
-- [x] **Lokalny serwer offline (minimalnie):** [`tools/serve_local.sh`](tools/serve_local.sh), [`tools/start_local.bat`](tools/start_local.bat) + [`README.md`](README.md) / [`HOSTING.md`](HOSTING.md) (pełna paczka ZIP nadal ręczna).
-- [x] **CSP (szablon):** sekcja w [`HOSTING.md`](HOSTING.md) — przykładowa polityka + uwagi o CDN / SRI (pełne SRI przy `import()` z CDN bez buildu — opcjonalnie).
-- [x] **Terminacja workera OCR** przy `pagehide` (oszczędność zasobów).
-
-### Spec — otwarte punkty (skrót)
-Pełna lista checkboxów: **§8** w [`OCR_protokoly_skan_spec.md`](OCR_protokoly_skan_spec.md). Nadal m.in.: **skany bitowe**, **dopasowanie ROI**, **ostateczne długości zlecenia**; dopiski — **heurystyka POC**, nie pełny detektor odręcznego.
+### Spec — otwarte punkty
+Pełna lista checkboxów: **§8** w [`OCR_protokoly_skan_spec.md`](OCR_protokoly_skan_spec.md).
 
 ---
 
@@ -82,9 +87,9 @@ Pełna lista checkboxów: **§8** w [`OCR_protokoly_skan_spec.md`](OCR_protokoly
 | `export_xlsx.mjs` | Wiersze Excel, merge, zapis |
 | `pdf_errors.mjs` | Komunikaty błędów PDF |
 | `folder_jobs.mjs` | PDF z wyboru folderu (Firefox / `webkitdirectory`) |
-| `calibration/roi_default.json` | Domyślne ROI dla str. 1 |
+| `calibration/roi_default.json` | Domyślne ROI dla str. 1 (skalibrowane na CCF 300 DPI) |
 | `tools/calibrate_layout.py` | Generowanie `roi_hints.json` z PDF z tekstem |
 
 ---
 
-*Ostatnia aktualizacja dokumentu: 2026-04-10 — uproszczenie UI (brak filtra, logu, ROI per-pole); podsumowanie batcha (chipy); robustność parsera (OCR spacje w numerze zlecenia i „Przewoźnik"); Excel: szerokości kolumn i autofiltr; `tools/run_selftests.sh`.*
+*Ostatnia aktualizacja: 2026-04-11 — kalibracja ROI na skanach CCF (format `NNNN/YYYY`, `Lista obsługiwanych plomb:`); adaptacyjny kontrast; PSM per region; skala 3×; czytelne etykiety Uwagi_odczyt; argparse w calibrate_layout.py.*

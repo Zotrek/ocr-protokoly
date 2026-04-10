@@ -40,7 +40,7 @@ assert.match(rowsMix[1].Uwagi_odczyt, /15 cyfr/);
 const qFile = protocolReadoutQuality(mixedPlomb, { ocrMinConfidence: 40, confidenceMin: 50 });
 const rowsFile = buildExcelRows("t.pdf", mixedPlomb, qFile);
 assert.equal(rowsFile.length, 2);
-assert.match(rowsFile[0].Uwagi_odczyt, /niski_confidence_ocr/);
+assert.match(rowsFile[0].Uwagi_odczyt, /niski confidence OCR/);
 assert.match(rowsFile[0].Uwagi_odczyt, /część numerów plomb pominięta/);
 assert.match(rowsFile[1].Uwagi_odczyt, /15 cyfr/);
 
@@ -50,7 +50,7 @@ const qZlecFormat = {
   issues: ["zlecenie_format", "plomba_format"],
 };
 const uwZ = excelUwagiForSealRow(qZlecFormat);
-assert.match(uwZ, new RegExp(`numer zlecenia: oczekiwano ${ZLECENIE_LEN_MIN}–${ZLECENIE_LEN_MAX} cyfr`));
+assert.match(uwZ, /numer zlecenia: nieprawidłowy format/);
 assert.match(uwZ, /część numerów plomb pominięta/);
 
 const uwHand = excelUwagiForSealRow({
@@ -59,5 +59,37 @@ const uwHand = excelUwagiForSealRow({
   uwagi_excel: "podejrzenie_odreczne_roi_lista_plomb",
 });
 assert.match(uwHand, /ROI lista plomb: podejrzenie/);
+
+// niski_confidence_ocr_roi_*(N) → czytelna etykieta
+const uwRoiConf = excelUwagiForSealRow({
+  ok: false,
+  issues: ["niski_confidence_ocr_roi_numer_zlecenia(42)"],
+  uwagi_excel: "niski_confidence_ocr_roi_numer_zlecenia(42)",
+});
+assert.match(uwRoiConf, /ROI numer zlecenia: niski confidence OCR \(42%\)/);
+
+const uwRoiConf2 = excelUwagiForSealRow({
+  ok: false,
+  issues: ["niski_confidence_ocr_roi_przewoznik(30)"],
+  uwagi_excel: "niski_confidence_ocr_roi_przewoznik(30)",
+});
+assert.match(uwRoiConf2, /ROI przewoźnik: niski confidence OCR \(30%\)/);
+
+// niski_confidence_ocr(N) (pełna strona / str. 2+) → czytelna etykieta
+const uwFullConf = excelUwagiForSealRow({
+  ok: false,
+  issues: ["niski_confidence_ocr(38)"],
+  uwagi_excel: "niski_confidence_ocr(38)",
+});
+assert.match(uwFullConf, /niski confidence OCR \(38%\)/);
+
+// brak_* → czytelne etykiety
+const uwBrak = excelUwagiForSealRow({
+  ok: false,
+  issues: ["brak_numeru_zlecenia", "brak_przewoznika"],
+  uwagi_excel: "brak_numeru_zlecenia; brak_przewoznika",
+});
+assert.match(uwBrak, /brak numeru zlecenia/);
+assert.match(uwBrak, /brak przewoźnika/);
 
 console.log("excel_export_selftest: OK");

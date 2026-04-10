@@ -15,16 +15,21 @@
 /** @typedef {{ numer_zlecenia: number, przewoznik: number, lista_plomb: number }} RoiOcrConfidences */
 /** @typedef {{ numer_zlecenia: string, przewoznik: string, lista_plomb: string }} RoiOcrRawTexts */
 
-/** Docelowa liczba cyfr numeru zlecenia (POC — do skorygowania po próbkach). */
+/**
+ * Format numeru zlecenia — rzeczywiste skany: „NNNN/YYYY" (np. „1460/2026").
+ * Zakres długości uwzględnia oba warianty: sam numer (1–6 cyfr) i z rokiem (9 znaków).
+ */
 export const ZLECENIE_LEN_MIN = 1;
 export const ZLECENIE_LEN_MAX = 12;
-const RE_ZLECENIE_DIGITS = new RegExp(`^\\d{${ZLECENIE_LEN_MIN},${ZLECENIE_LEN_MAX}}$`);
+/** Walidacja: sam numer (np. „1460") lub numer z rokiem (np. „1460/2026"). */
+const RE_ZLECENIE_DIGITS = /^\d{1,6}(?:\/\d{4})?$/;
 
 /**
- * Numer zlecenia może być odczytany z OCR ze spacją wewnątrz (np. „12 345").
- * Przechwytujemy cyfry + spacje/tabulatory (do 24 znaków), potem czyścimy.
+ * Numer zlecenia — format „NNNN/YYYY" (skany) lub same cyfry (eksport Word).
+ * OCR może wstawiać spacje wewnątrz cyfr; "/" jest dopuszczalny jako separator roku.
+ * Przechwytujemy cyfry + spacje/tabulatory/slash (do 24 znaków), potem czyścimy.
  */
-const RE_ZLECENIE = /Zlecenie\s+transportowe\s+nr\s*:\s*(\d[\d \t]{0,23})/i;
+const RE_ZLECENIE = /Zlecenie\s+transportowe\s+nr\s*:\s*(\d[\d/ \t]{0,23})/i;
 /**
  * OCR często bez „ó” / „ź”; tolerancja na spację wewnątrz słowa (np. „Przew oznik”).
  * Dopasowuje „Przewoznik:”, „Przewoźnik:”, „Przew oznik:” i podobne warianty.
@@ -32,11 +37,14 @@ const RE_ZLECENIE = /Zlecenie\s+transportowe\s+nr\s*:\s*(\d[\d \t]{0,23})/i;
 export const RE_PRZEWOZ_START = /Przew\s?[oó]\s?[zź]ni?k\s*:\s*/i;
 const RE_MIEJSCE_DOSTAWY = /Miejsce\s+dostawy\s*:/i;
 /**
- * Nagłówek listy plomb (parser, `nativeTextHasListaPlomb`, ROI stitch) —
- * tolerancja na „plomby”, błędne końcówki oraz typowe pomyłki OCR („o debranych”, „oderbranych”).
+ * Nagłówek listy plomb (parser, `nativeTextHasListaPlomb`, ROI stitch).
+ * Warianty słowa opisowego:
+ *  – „odebranych” i błędy OCR: „o debranych”, „oderbranych”
+ *  – „obsługiwanych” (rzeczywisty format ze skanów CCF) i wersja bez ogonków „obslugiwanych”,
+ *    z marginesem OCR: „obs[ł]ugiwanych” → dopasowanie przez `obs[a-zł]*wanych`
  */
 export const RE_LISTA_PLOMB =
-  /(?:Lista\s+o\s*debranych|Lista\s+oderbranych|Lista\s+odebranych)\s+plom[a-z]*\s*:/i;
+  /Lista\s+(?:o\s*debranych|oderbranych|odebranych|obs[a-zł]*wanych)\s+plom[a-z]*\s*:/i;
 const RE_UWAGI = /^Uwagi\s*:/im;
 
 /**
@@ -126,19 +134,16 @@ const RE_PLOMBA_EXCEL_DIGITS = new RegExp(`^\\d{${PLOMBA_LEN_EXCEL}}$`);
 
 /**
  * Czy warstwa tekstowa PDF wygląda na pełny protokół (unikamy zbędnego OCR str. 1).
+ * Sprawdza rzeczywiste wzorce nagłówków zamiast luźnych słów kluczowych.
  * Uwzględnia „Przewoznik” bez polskich znaków — częsty eksport PDF.
  * @param {string} s
  */
 export function nativeTextLooksLikeProtocol(s) {
-  const t = s.toLowerCase();
-  const hasCarrier = t.includes("przewoznik") || t.includes("przewoźnik");
   return (
     s.trim().length > 120 &&
-    t.includes("zlecenie") &&
-    t.includes("transportowe") &&
-    hasCarrier &&
-    t.includes("lista") &&
-    t.includes("plomb")
+    RE_ZLECENIE.test(s) &&
+    RE_PRZEWOZ_START.test(s) &&
+    RE_LISTA_PLOMB.test(s)
   );
 }
 

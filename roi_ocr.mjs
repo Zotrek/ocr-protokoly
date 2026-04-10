@@ -116,7 +116,12 @@ function cropCanvas(source, sx, sy, sw, sh) {
 }
 
 /**
- * Szarość + lekki kontrast na pełnym rastrze strony (skany) — przed wycinkami ROI i przed pełnostronicowym OCR.
+ * Szarość + adaptacyjny kontrast na pełnym rastrze strony (skany).
+ * Kontrast dobierany na podstawie odchylenia standardowego jasności:
+ *  – stdDev < 30: skan wyblakły / faded (np. 150 DPI, niski kontrast) → contrast 1.7
+ *  – stdDev 30–50: nieznacznie wyblakły                                 → contrast 1.45
+ *  – stdDev > 50:  normalny skan (np. CCF 300 DPI)                      → contrast 1.22
+ * Statystyki liczone na co 4. pikselu (szybkie przybliżenie).
  * @param {HTMLCanvasElement} canvas
  */
 export function enhanceCanvasForOcr(canvas) {
@@ -127,7 +132,19 @@ export function enhanceCanvasForOcr(canvas) {
   if (w < 1 || h < 1) return;
   const img = ctx.getImageData(0, 0, w, h);
   const d = img.data;
-  const contrast = 1.22;
+
+  // Szybkie przybliżenie mean + variance (co 4. piksel = 1/16 próbek)
+  let cnt = 0, sum = 0, sumSq = 0;
+  for (let i = 0; i < d.length; i += 16) {
+    const v = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+    cnt++;
+    sum += v;
+    sumSq += v * v;
+  }
+  const mean = sum / cnt;
+  const stdDev = Math.sqrt(Math.max(0, sumSq / cnt - mean * mean));
+  const contrast = stdDev < 30 ? 1.7 : stdDev < 50 ? 1.45 : 1.22;
+
   const mid = 128;
   for (let i = 0; i < d.length; i += 4) {
     let v = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
@@ -158,11 +175,25 @@ export async function renderPageToCanvas(page, scale) {
 }
 
 /**
+ * Tryby segmentacji Tesseract (PSM) używane przy OCR wycinkach ROI.
+ * Dokumentacja: https://tesseract-ocr.github.io/tessdoc/ImproveQuality#page-segmentation-method
+ */
+const PSM = /** @type {const} */ ({
+  AUTO: "3",       // domyślny — pełna analiza layoutu (strona)
+  COLUMN: "4",     // pojedyncza kolumna tekstu (lista plomb)
+  BLOCK: "6",      // jednorodny blok tekstu (numer zlecenia, przewoźnik)
+});
+
+/**
  * @param {import('tesseract.js').Worker} worker
  * @param {HTMLCanvasElement | OffscreenCanvas} canvas
+ * @param {string | null} [psm]  Tryb segmentacji (PSM); null = bez zmiany ustawień
  * @returns {Promise<{ text: string, confidence: number }>}
  */
-export async function recognizeCanvasWithConfidence(worker, canvas) {
+export async function recognizeCanvasWithConfidence(worker, canvas, psm = null) {
+  if (psm !== null) {
+    await worker.setParameters({ tessedit_pageseg_mode: psm });
+  }
   const r = await worker.recognize(canvas);
   const raw = typeof r.data.confidence === "number" ? r.data.confidence : NaN;
   const confidence = Number.isFinite(raw) && raw >= 0 ? raw : 0;
@@ -182,7 +213,8 @@ export async function recognizeCanvasWithConfidence(worker, canvas) {
  * }>}
  */
 export async function ocrPage1RoiStitched(page, worker, cfg) {
-  const scale = 2;
+  // Skala 3× — lepsza rozdzielczość dla Tesseract (scany A4 ≈ 216 DPI przy 3×, vs 144 DPI przy 2×).
+  const scale = 3;
   const canvas = await renderPageToCanvas(page, scale);
   enhanceCanvasForOcr(canvas);
 
@@ -192,18 +224,23 @@ export async function ocrPage1RoiStitched(page, worker, cfg) {
   const vp1 = page.getViewport({ scale: 1 });
   const regions_norm = pickRegionsNormForViewport(cfg, vp1.width, vp1.height);
 
-  /** @param {string} key */
-  async function ocrRegion(key) {
+  /**
+   * @param {string} key
+   * @param {string} psm  Tryb PSM Tesseract właściwy dla tego regionu
+   */
+  async function ocrRegion(key, psm) {
     const r = regions_norm[key];
     if (!r) return { text: "", confidence: 100 };
     const { sx, sy, sw, sh } = normRectToCanvasPixels(r, margin, w, h);
     const crop = cropCanvas(canvas, sx, sy, sw, sh);
-    return recognizeCanvasWithConfidence(worker, crop);
+    return recognizeCanvasWithConfidence(worker, crop, psm);
   }
 
-  const z = await ocrRegion("numer_zlecenia");
-  const p = await ocrRegion("przewoznik");
-  const l = await ocrRegion("lista_plomb");
+  // PSM 6 (jednorodny blok) dla pól tekstowych.
+  // lista_plomb: PSM AUTO (3) — obsługuje zarówno jednokolumnowe jak i dwukolumnowe listy (CCF str. 4+).
+  const z = await ocrRegion("numer_zlecenia", PSM.BLOCK);
+  const p = await ocrRegion("przewoznik", PSM.BLOCK);
+  const l = await ocrRegion("lista_plomb", PSM.AUTO);
   const roiMinConfidence = Math.min(z.confidence, p.confidence, l.confidence);
   /** Pewność Tesseract per wycinek ROI (str. 1) — do progów w `protocolReadoutQuality`. */
   const roiConfidences = {
@@ -216,9 +253,13 @@ export async function ocrPage1RoiStitched(page, worker, cfg) {
   const pRaw = p.text;
   const lRaw = l.text;
 
-  const zLine = /zlecenie/i.test(zRaw) ? zRaw : `Zlecenie transportowe nr: ${zRaw}`;
+  // Tolerancja na błędy OCR w słowie „Zlecenie" (np. „Zlecenle") — wystarczy „Zlec".
+  const zLine = /zlec/i.test(zRaw) ? zRaw : `Zlecenie transportowe nr: ${zRaw}`;
   const pLine = RE_PRZEWOZ_START.test(pRaw) ? pRaw : `Przewoźnik: ${pRaw}`;
   const listBlock = RE_LISTA_PLOMB.test(lRaw) ? lRaw : `Lista odebranych plomb:\n${lRaw}`;
+
+  // Przywróć PSM AUTO — kolejne wywołania (ocrFullPageText, str. 2+) powinny korzystać z domyślnego.
+  await worker.setParameters({ tessedit_pageseg_mode: PSM.AUTO });
 
   const text = [zLine, "", pLine, "", listBlock].join("\n");
   const roiRawTexts = { numer_zlecenia: zRaw, przewoznik: pRaw, lista_plomb: lRaw };
@@ -233,5 +274,6 @@ export async function ocrPage1RoiStitched(page, worker, cfg) {
 export async function ocrFullPageText(page, worker) {
   const canvas = await renderPageToCanvas(page, 2);
   enhanceCanvasForOcr(canvas);
-  return recognizeCanvasWithConfidence(worker, canvas);
+  // PSM.AUTO — pełna strona ma zróżnicowany układ (nagłówek, lista, uwagi).
+  return recognizeCanvasWithConfidence(worker, canvas, PSM.AUTO);
 }

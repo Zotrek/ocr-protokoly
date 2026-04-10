@@ -24,16 +24,36 @@ const PODEJRZENIE_ODRECZNE_LABELS = /** @type {const} */ ({
   podejrzenie_odreczne_roi_lista_plomb: "ROI lista plomb: podejrzenie dopisku odręcznego lub szumu OCR (heurystyka POC)",
 });
 
+const ROI_FIELD_NAMES = /** @type {const} */ ({
+  numer_zlecenia: "numer zlecenia",
+  przewoznik: "przewoźnik",
+  lista_plomb: "lista plomb",
+});
+
 /**
+ * Czytelna polska etykieta dla tokenu problemu (kolumna `Uwagi_odczyt`).
+ * Obsługuje wszystkie tokeny produkowane przez `protocolReadoutQuality`.
  * @param {string} issue
  */
 function issueLabelForSealRowUwagi(issue) {
   if (issue === "zlecenie_format") {
-    return `numer zlecenia: oczekiwano ${ZLECENIE_LEN_MIN}–${ZLECENIE_LEN_MAX} cyfr (POC)`;
+    return `numer zlecenia: nieprawidłowy format (oczekiwano cyfr lub formatu NNNN/RRRR)`;
   }
+  if (issue === "brak_numeru_zlecenia") return "brak numeru zlecenia";
+  if (issue === "brak_przewoznika") return "brak przewoźnika";
+  if (issue === "brak_plomb") return "brak plomb";
   if (issue in PODEJRZENIE_ODRECZNE_LABELS) {
     return /** @type {Record<string, string>} */ (PODEJRZENIE_ODRECZNE_LABELS)[issue];
   }
+  // niski_confidence_ocr_roi_numer_zlecenia(55) → "ROI numer zlecenia: niski confidence OCR (55%)"
+  const roiConf = issue.match(/^niski_confidence_ocr_roi_(numer_zlecenia|przewoznik|lista_plomb)\((\d+)\)$/);
+  if (roiConf) {
+    const field = ROI_FIELD_NAMES[/** @type {keyof typeof ROI_FIELD_NAMES} */ (roiConf[1])] ?? roiConf[1];
+    return `ROI ${field}: niski confidence OCR (${roiConf[2]}%)`;
+  }
+  // niski_confidence_ocr(55) → "niski confidence OCR (55%)"
+  const fullConf = issue.match(/^niski_confidence_ocr\((\d+)\)$/);
+  if (fullConf) return `niski confidence OCR (${fullConf[1]}%)`;
   return issue;
 }
 

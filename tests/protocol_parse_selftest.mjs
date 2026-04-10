@@ -26,6 +26,9 @@ assert.ok(nativeTextLooksLikeProtocol(LONG_NATIVE));
 const LONG_NATIVE_OGONEK = LONG_NATIVE.replace("Przewoznik:", "Przewoźnik:");
 assert.ok(nativeTextLooksLikeProtocol(LONG_NATIVE_OGONEK));
 assert.ok(!nativeTextLooksLikeProtocol("Zlecenie transportowe nr: 1\nPrzewoznik: X\nLista odebranych plomb:\n1. 700000000340087\n"));
+// luźne słowa kluczowe bez poprawnego wzorca "Zlecenie transportowe nr: NNN" → odrzuć
+const FAKE_KW = `${"x".repeat(130)}\nzlecenie transportowe Przewoznik: X Lista odebranych plomb: brak numeru\n`;
+assert.ok(!nativeTextLooksLikeProtocol(FAKE_KW), "brak RE_ZLECENIE — nie powinno przejść");
 
 assert.ok(nativeTextHasListaPlomb("Lista odebranych plomb:\n1. x"));
 assert.ok(nativeTextHasListaPlomb("Lista o debranych plomb:\n1. x"));
@@ -132,11 +135,13 @@ assert.equal(PLOMBA_RAW_LEN_MAX, 18);
 assert.equal(ZLECENIE_LEN_MIN, 1);
 assert.equal(ZLECENIE_LEN_MAX, 12);
 assert.ok(isZlecenieFormatSample("42"));
-assert.ok(isZlecenieFormatSample("9".repeat(12)));
-assert.ok(!isZlecenieFormatSample("9".repeat(13)));
+assert.ok(isZlecenieFormatSample("123456"));         // 6 cyfr — maksimum bez roku
+assert.ok(isZlecenieFormatSample("1460/2026"));      // format NNNN/RRRR (rzeczywiste skany)
+assert.ok(!isZlecenieFormatSample("9".repeat(7)));   // >6 cyfr bez roku — za długi
+assert.ok(!isZlecenieFormatSample("1460/202"));      // rok za krótki (3 cyfry)
 assert.ok(!isZlecenieFormatSample(""));
 
-const badZlec = parseProtocolText(SYNTH.replace("nr: 42", `nr: ${"9".repeat(13)}`));
+const badZlec = parseProtocolText(SYNTH.replace("nr: 42", `nr: ${"9".repeat(7)}`));
 assert.ok(badZlec.uwagi_parse.includes("zlecenie_format"));
 assert.ok(!protocolStructuralOk(badZlec));
 const qBadZlec = protocolReadoutQuality(badZlec);
@@ -295,5 +300,38 @@ Lista odebranych plomb:
 1. 700000000340087
 `);
 assert.equal(ocrSpaceNr2.numer_zlecenia, "123");
+
+// === Rzeczywiste skany CCF (kwiecień 2026) ===
+
+// Format "NNNN/RRRR" — rzeczywisty format ze skanów (np. „1460/2026")
+const ccrFormat = parseProtocolText(`
+Zlecenie transportowe nr: 1460/2026
+Przewoźnik: GPW Logistics S.A. ul. Książęca 4, 00-498 Warszawa
+Miejsce dostawy: ZK SOKOŁÓW MŁP.
+Lista obsługiwanych plomb:
+1. 700000000258679
+2. 700000000258304
+3. 700000000258290
+`);
+assert.equal(ccrFormat.numer_zlecenia, "1460/2026", "numer zlecenia format NNNN/RRRR");
+assert.ok(isZlecenieFormatSample(ccrFormat.numer_zlecenia), "isZlecenieFormatSample dla 1460/2026");
+assert.ok(ccrFormat.przewoznik.includes("GPW Logistics"), "przewoźnik ze skanu CCF");
+assert.equal(ccrFormat.plomby.length, 3, "plomby z 'Lista obsługiwanych plomb:'");
+assert.ok(ccrFormat.uwagi_parse.length === 0, "brak błędów parsowania");
+
+// RE_LISTA_PLOMB: "Lista obsługiwanych plomb:" — format ze skanów CCF
+assert.ok(nativeTextHasListaPlomb("Lista obsługiwanych plomb:\n1. 700000000258679"));
+assert.ok(nativeTextHasListaPlomb("Lista obslugiwanych plomb:"), "bez ogonka ł");
+assert.ok(nativeTextHasListaPlomb("Lista obstugiwanych plomby:"), "błąd OCR 'l→t'");
+
+// Format NNNN/RRRR z błędną spacją OCR: „1 460/2026" → „1460/2026"
+const ccrSpaceNr = parseProtocolText(`
+Zlecenie transportowe nr: 1 460/2026
+Przewoznik: Firma X
+Miejsce dostawy: Y
+Lista obsługiwanych plomb:
+1. 700000000340087
+`);
+assert.equal(ccrSpaceNr.numer_zlecenia, "1460/2026", "OCR spacja w numerze NNNN/RRRR");
 
 console.log("protocol_parse_selftest: OK");

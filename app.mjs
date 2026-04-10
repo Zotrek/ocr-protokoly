@@ -18,7 +18,7 @@ import {
   loadXlsx,
 } from "./export_xlsx.mjs";
 import { humanizePdfError } from "./pdf_errors.mjs";
-import { pdfJobsFromWebkitFileList, SKIP_DIR_NAMES } from "./folder_jobs.mjs";
+import { pdfJobsFromWebkitFileList } from "./folder_jobs.mjs";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc =
   "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.worker.min.mjs";
