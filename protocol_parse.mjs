@@ -23,8 +23,12 @@ const RE_ZLECENIE = /Zlecenie\s+transportowe\s+nr\s*:\s*(\d+)/i;
 /** OCR często bez „ó” / „ź” */
 const RE_PRZEWOZ_START = /(?:Przewoznik|Przewoźnik)\s*:\s*/i;
 const RE_MIEJSCE_DOSTAWY = /Miejsce\s+dostawy\s*:/i;
-/** Nagłówek listy — tolerancja na „plomby”, błędne ostatnie litery z OCR */
-const RE_LISTA_PLOMB = /Lista\s+odebranych\s+plom[a-z]*\s*:/i;
+/**
+ * Nagłówek listy plomb (parser, `nativeTextHasListaPlomb`, ROI stitch) —
+ * tolerancja na „plomby”, błędne końcówki oraz typowe pomyłki OCR („o debranych”, „oderbranych”).
+ */
+export const RE_LISTA_PLOMB =
+  /(?:Lista\s+o\s*debranych|Lista\s+oderbranych|Lista\s+odebranych)\s+plom[a-z]*\s*:/i;
 const RE_UWAGI = /^Uwagi\s*:/im;
 
 /**

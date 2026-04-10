@@ -27,6 +27,8 @@ assert.ok(nativeTextLooksLikeProtocol(LONG_NATIVE_OGONEK));
 assert.ok(!nativeTextLooksLikeProtocol("Zlecenie transportowe nr: 1\nPrzewoznik: X\nLista odebranych plomb:\n1. 700000000340087\n"));
 
 assert.ok(nativeTextHasListaPlomb("Lista odebranych plomb:\n1. x"));
+assert.ok(nativeTextHasListaPlomb("Lista o debranych plomb:\n1. x"));
+assert.ok(nativeTextHasListaPlomb("Lista oderbranych plomby:\n1. x"));
 assert.ok(!nativeTextHasListaPlomb("same random chars no header"));
 
 const SYNTH = `Zlecenie transportowe nr: 42
@@ -179,6 +181,24 @@ Lista odebranych plomby:
 1. 700000000340087
 `);
 assert.deepEqual(listaPlomby.plomby, ["700000000340087"]);
+
+const listaOcrSpace = parseProtocolText(`
+Zlecenie transportowe nr: 21
+Przewoźnik: Z
+Miejsce dostawy: W
+Lista o debranych plomb:
+1. 700000000340087
+`);
+assert.deepEqual(listaOcrSpace.plomby, ["700000000340087"]);
+
+const listaOcrTypo = parseProtocolText(`
+Zlecenie transportowe nr: 22
+Przewoźnik: Z
+Miejsce dostawy: W
+Lista oderbranych plomb:
+1. 700000000340087
+`);
+assert.deepEqual(listaOcrTypo.plomby, ["700000000340087"]);
 
 const twoCol = parseProtocolText(`
 Zlecenie transportowe nr: 8

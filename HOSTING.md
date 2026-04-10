@@ -9,7 +9,7 @@ Aplikacja musi być serwowana przez **HTTPS** (albo `http://127.0.0.1` przy dev)
 1. Załóż konto na [https://dash.cloudflare.com/](https://dash.cloudflare.com/) (darmowe).
 2. W menu: **Workers & Pages** → **Create** → zakładka **Pages** → **Upload assets**.
 3. Nazwa projektu (np. `ocr-protokoly`) → **Create project**.
-4. Spakuj **cały** katalog aplikacji do ZIP: `index.html`, `app.mjs`, `protocol_parse.mjs`, `roi_ocr.mjs`, `export_xlsx.mjs`, `pdf_errors.mjs`, folder `calibration/` (np. `roi_default.json`). W **katalogu głównym** archiwum musi być `index.html` jako strona główna.
+4. Spakuj **cały** katalog aplikacji do ZIP: `index.html`, `app.mjs`, `protocol_parse.mjs`, `roi_ocr.mjs`, `export_xlsx.mjs`, `pdf_errors.mjs`, `folder_jobs.mjs`, folder `calibration/` (np. `roi_default.json`). W **katalogu głównym** archiwum musi być `index.html` jako strona główna.
 5. Przeciągnij ZIP → **Deploy site**.
 6. Po chwili dostaniesz adres `https://<nazwa>.pages.dev` — tego linku używa klient (w **Chrome / Edge** pełny zapis w folderze; w **Firefox** — pobieranie Excela).
 
@@ -59,6 +59,20 @@ W przeglądarce: `http://127.0.0.1:8765` — **nie** otwieraj `index.html` przez
 - [ ] Wejście na **HTTPS** (link `*.pages.dev`, `github.io` lub własna domena).
 - [ ] **Wybór folderu** z PDF — w **bezpiecznym kontekście** (HTTPS / localhost). W Firefoxie: ten sam wybór katalogu, ale zapis wyniku jako **pobranie** pliku.
 - [ ] Przy pierwszym uruchomieniu możliwy długi czas ładowania (model OCR z sieci).
+
+---
+
+## Opcjonalnie: Content-Security-Policy (CSP)
+
+Jeśli hosting lub polityka firmy wymaga nagłówka **CSP**, poniżej **punkt wyjścia** (dostosuj do swojej domeny i audytu). Aplikacja ma **style inline** w `index.html` — bez wydzielenia CSS do osobnego pliku potrzebne jest `'unsafe-inline'` dla stylów (albo hash/nonce — wtedy zmiana HTML).
+
+Przykład (nagłówek odpowiedzi HTTP; **nie** kopiuj ślepo na produkcję bez testów):
+
+```http
+Content-Security-Policy: default-src 'self'; base-uri 'self'; frame-ancestors 'none'; object-src 'none'; script-src 'self' https://cdn.jsdelivr.net https://cdn.sheetjs.com 'wasm-unsafe-eval'; worker-src 'self' blob:; connect-src 'self' https://cdn.jsdelivr.net https://cdn.sheetjs.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob:;
+```
+
+**Uwagi:** Tesseract.js i pdf.js ładują skrypty / WASM z **jsDelivr**; SheetJS — z **cdn.sheetjs.com** (zgodnie z `export_xlsx.mjs`). **Subresource Integrity (SRI)** na dynamicznych importach `import("https://…")` bywa utrudnione — często CSP + **szpilowanie wersji** URL-i w kodzie wystarcza zespołowi bezpieczeństwa; pełne SRI wymaga bundlera lub ręcznych hashy przy każdej aktualizacji CDN.
 
 ---
 

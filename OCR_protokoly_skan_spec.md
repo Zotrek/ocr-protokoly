@@ -173,3 +173,4 @@ Plik trafia do **`done`** tylko wtedy, gdy **wszystkie** pola krytyczne spełnia
 | 2026-04-10 | §7: OCR str. 2+ gdy warstwa PDF bez nagłówka listy plomb (`nativeTextHasListaPlomb`). |
 | 2026-04-10 | §8: progi per pole dla ROI str. 1 (opcjonalnie w UI); pełna strona — próg ogólny. |
 | 2026-04-10 | §8: częściowa walidacja długości `numer_zlecenia` (POC); `folder_jobs.mjs` dla listy PDF z `webkitdirectory`. |
+| 2026-04-10 | `HOSTING.md`: przykładowy CSP; nagłówek listy plomb — warianty OCR w `RE_LISTA_PLOMB`. |

@@ -2,6 +2,8 @@
  * ROI-based OCR for protocol page 1 (scans). Stitches crops into text the parser understands.
  */
 
+import { RE_LISTA_PLOMB } from "./protocol_parse.mjs";
+
 /** @typedef {{ left: number, top: number, width: number, height: number }} NormRect */
 /**
  * @typedef {{
@@ -200,7 +202,7 @@ export async function ocrPage1RoiStitched(page, worker, cfg) {
 
   const zLine = /zlecenie/i.test(zRaw) ? zRaw : `Zlecenie transportowe nr: ${zRaw}`;
   const pLine = /przewoźnik/i.test(pRaw) ? pRaw : `Przewoźnik: ${pRaw}`;
-  const listBlock = /lista\s+odebranych\s+plomb/i.test(lRaw) ? lRaw : `Lista odebranych plomb:\n${lRaw}`;
+  const listBlock = RE_LISTA_PLOMB.test(lRaw) ? lRaw : `Lista odebranych plomb:\n${lRaw}`;
 
   const text = [zLine, "", pLine, "", listBlock].join("\n");
   return { text, roiMinConfidence, roiConfidences };

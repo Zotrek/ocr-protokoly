@@ -6,6 +6,7 @@ import {
   buildExcelRows,
   excelUwagiForSealRow,
 } from "../export_xlsx.mjs";
+import { ZLECENIE_LEN_MIN, ZLECENIE_LEN_MAX } from "../protocol_parse.mjs";
 import { parseProtocolText, protocolReadoutQuality } from "../protocol_parse.mjs";
 
 assert.equal(EXCEL_HEADER.length, 5);
@@ -42,5 +43,14 @@ assert.equal(rowsFile.length, 2);
 assert.match(rowsFile[0].Uwagi_odczyt, /niski_confidence_ocr/);
 assert.match(rowsFile[0].Uwagi_odczyt, /część numerów plomb pominięta/);
 assert.match(rowsFile[1].Uwagi_odczyt, /15 cyfr/);
+
+const qZlecFormat = {
+  ok: false,
+  uwagi_excel: "zlecenie_format; plomba_format",
+  issues: ["zlecenie_format", "plomba_format"],
+};
+const uwZ = excelUwagiForSealRow(qZlecFormat);
+assert.match(uwZ, new RegExp(`numer zlecenia: oczekiwano ${ZLECENIE_LEN_MIN}–${ZLECENIE_LEN_MAX} cyfr`));
+assert.match(uwZ, /część numerów plomb pominięta/);
 
 console.log("excel_export_selftest: OK");

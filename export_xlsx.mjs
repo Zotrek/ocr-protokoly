@@ -7,11 +7,23 @@ import {
   PLOMBA_LEN_EXCEL,
   PLOMBA_RAW_LEN_MIN,
   PLOMBA_RAW_LEN_MAX,
+  ZLECENIE_LEN_MIN,
+  ZLECENIE_LEN_MAX,
 } from "./protocol_parse.mjs";
 
 const RE_PLOMBA_RAW_NOT_EXCEL = new RegExp(
   `^\\d{${PLOMBA_RAW_LEN_MIN},${PLOMBA_RAW_LEN_MAX}}$`
 );
+
+/**
+ * @param {string} issue
+ */
+function issueLabelForSealRowUwagi(issue) {
+  if (issue === "zlecenie_format") {
+    return `numer zlecenia: oczekiwano ${ZLECENIE_LEN_MIN}–${ZLECENIE_LEN_MAX} cyfr (POC)`;
+  }
+  return issue;
+}
 
 /**
  * Numery z listy (raw min–max cyfr), które nie są docelowym N-cyfrowym formatem Excel.
@@ -108,7 +120,7 @@ export function excelUwagiForSealRow(quality) {
   if (issues.length === 1 && issues[0] === "plomba_format") {
     return `ok — w dokumencie odrzucono część numerów (wymagane ${PLOMBA_LEN_EXCEL} cyfr)`;
   }
-  const parts = [...nonPlomb];
+  const parts = nonPlomb.map(issueLabelForSealRowUwagi);
   if (hasFormat) parts.push(`część numerów plomb pominięta (format ${PLOMBA_LEN_EXCEL} cyfr)`);
   return parts.length ? parts.join("; ") : quality.uwagi_excel;
 }

@@ -21,7 +21,7 @@ Krótki przegląd **co działa w POC** i **co zostaje do zrobienia** (zwłaszcza
 - **Wiele protokołów w jednym PDF:** `parseProtocolText` dzieli po nagłówku `Zlecenie transportowe nr:` i zwraca **`segments`** — Excel: osobne wiersze z **numerem zlecenia / przewoźnikiem** per segment.
 - **Lista w dwóch kolumnach** (wiele `1. … 2. …` w jednym wierszu): wyciąganie plomb po **pozycjach `k.`** z zatrzymaniem przed następnym `k.` (funkcja `plombyFromListLine` w [`protocol_parse.mjs`](protocol_parse.mjs)).
 - **ROI wąska vs A4**: w `roi_default.json` jest **`narrow_page_width_pt_max`** (domyślnie **585** pt w przestrzeni PDF): strona węższa niż próg (np. skan ~578×824) używa **`regions_norm_narrow`**, szersza — **`regions_norm`**. Gdy progu szerokości **nie ma** w JSON, wybór „wąskiej” mapy pada na **`aspect_ratio_narrow_max`** (fallback).
-- **Str. 2+:** jeśli warstwa PDF jest **niepusta**, ale **bez** nagłówka listy plomb (wzór jak w parserze) — **wymuszany OCR** pełnej strony (typowy skan z bezużytecznym tekstem). Nadal możliwe edge case’y (np. inna pisownia nagłówka) — regexy w `protocol_parse.mjs`.
+- **Str. 2+:** jeśli warstwa PDF jest **niepusta**, ale **bez** nagłówka listy plomb (`RE_LISTA_PLOMB` — m.in. „Lista o debranych…”, „Lista oderbranych…”) — **wymuszany OCR** pełnej strony (typowy skan z bezużytecznym tekstem).
 - **Pewność Tesseract**: przy **OCR ROI str. 1** (wybrana ścieżka ROI, nie pełna strona) — osobno **numer zlecenia / przewoźnik / lista plomb** vs próg (`niski_confidence_ocr_roi_*` w `Uwagi_odczyt`); opcjonalnie **inny próg per region** (puste pole = próg ogólny). Przy **pełnej stronie 1** lub braku mapy ROI — **jedna** wartość `niski_confidence_ocr(min)`. Regulacja w UI + `localStorage`.
 - **Zamknięcie karty**: `pagehide` → `terminate()` workera Tesseract (zwolnienie zasobów).
 - Czytelne błędy **pdf.js**: [`pdf_errors.mjs`](pdf_errors.mjs) (hasło, uszkodzony plik itd.).
@@ -64,7 +64,7 @@ Krótki przegląd **co działa w POC** i **co zostaje do zrobienia** (zwłaszcza
 ### Produkt / techniczne
 - [x] **Filtr nazwy pliku** (zawiera) — poza domyślnym `*.pdf` w katalogu.
 - [x] **Lokalny serwer offline (minimalnie):** [`tools/serve_local.sh`](tools/serve_local.sh), [`tools/start_local.bat`](tools/start_local.bat) + [`README.md`](README.md) / [`HOSTING.md`](HOSTING.md) (pełna paczka ZIP nadal ręczna).
-- [ ] **CSP / SRI** pod konkretny hosting (jeśli polityka bezpieczeństwa wymaga).
+- [x] **CSP (szablon):** sekcja w [`HOSTING.md`](HOSTING.md) — przykładowa polityka + uwagi o CDN / SRI (pełne SRI przy `import()` z CDN bez buildu — opcjonalnie).
 - [x] **Terminacja workera OCR** przy `pagehide` (oszczędność zasobów).
 
 ### Spec — otwarte punkty (skrót)
@@ -88,4 +88,4 @@ Pełna lista checkboxów: **§8** w [`OCR_protokoly_skan_spec.md`](OCR_protokoly
 
 ---
 
-*Ostatnia aktualizacja dokumentu: 2026-04-10 — m.in. walidacja długości numeru zlecenia (POC), `folder_jobs.mjs`, osobne progi ROI.*
+*Ostatnia aktualizacja dokumentu: 2026-04-10 — m.in. szersze `RE_LISTA_PLOMB` (OCR), szablon CSP w HOSTING, czytelniejsze uwagi Excel dla `zlecenie_format`.*
