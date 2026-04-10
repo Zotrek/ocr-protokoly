@@ -14,6 +14,9 @@ import {
   PLOMBA_LEN_EXCEL,
   PLOMBA_RAW_LEN_MIN,
   PLOMBA_RAW_LEN_MAX,
+  ZLECENIE_LEN_MIN,
+  ZLECENIE_LEN_MAX,
+  isZlecenieFormatSample,
 } from "../protocol_parse.mjs";
 import { normalizeExcelRow, buildExcelRows } from "../export_xlsx.mjs";
 
@@ -103,6 +106,19 @@ assert.equal(OCR_CONFIDENCE_MIN, 55);
 assert.equal(PLOMBA_LEN_EXCEL, 15);
 assert.equal(PLOMBA_RAW_LEN_MIN, 12);
 assert.equal(PLOMBA_RAW_LEN_MAX, 18);
+assert.equal(ZLECENIE_LEN_MIN, 1);
+assert.equal(ZLECENIE_LEN_MAX, 12);
+assert.ok(isZlecenieFormatSample("42"));
+assert.ok(isZlecenieFormatSample("9".repeat(12)));
+assert.ok(!isZlecenieFormatSample("9".repeat(13)));
+assert.ok(!isZlecenieFormatSample(""));
+
+const badZlec = parseProtocolText(SYNTH.replace("nr: 42", `nr: ${"9".repeat(13)}`));
+assert.ok(badZlec.uwagi_parse.includes("zlecenie_format"));
+assert.ok(!protocolStructuralOk(badZlec));
+const qBadZlec = protocolReadoutQuality(badZlec);
+assert.ok(!qBadZlec.ok);
+assert.ok(qBadZlec.issues.includes("zlecenie_format"));
 
 const badPlomb = parseProtocolText(
   SYNTH.replace("700000000340022", "70000000034002")

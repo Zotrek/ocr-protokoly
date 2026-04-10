@@ -14,6 +14,11 @@
  */
 /** @typedef {{ numer_zlecenia: number, przewoznik: number, lista_plomb: number }} RoiOcrConfidences */
 
+/** Docelowa liczba cyfr numeru zlecenia (POC — do skorygowania po próbkach). */
+export const ZLECENIE_LEN_MIN = 1;
+export const ZLECENIE_LEN_MAX = 12;
+const RE_ZLECENIE_DIGITS = new RegExp(`^\\d{${ZLECENIE_LEN_MIN},${ZLECENIE_LEN_MAX}}$`);
+
 const RE_ZLECENIE = /Zlecenie\s+transportowe\s+nr\s*:\s*(\d+)/i;
 /** OCR często bez „ó” / „ź” */
 const RE_PRZEWOZ_START = /(?:Przewoznik|Przewoźnik)\s*:\s*/i;
@@ -21,6 +26,16 @@ const RE_MIEJSCE_DOSTAWY = /Miejsce\s+dostawy\s*:/i;
 /** Nagłówek listy — tolerancja na „plomby”, błędne ostatnie litery z OCR */
 const RE_LISTA_PLOMB = /Lista\s+odebranych\s+plom[a-z]*\s*:/i;
 const RE_UWAGI = /^Uwagi\s*:/im;
+
+/**
+ * @param {string} s
+ * @returns {boolean}
+ */
+export function isZlecenieFormatSample(s) {
+  const t = typeof s === "string" ? s.trim() : "";
+  if (!t) return false;
+  return RE_ZLECENIE_DIGITS.test(t);
+}
 
 /**
  * Wiele pozycji „k. cyfry” w jednej linii (np. dwie kolumny); zatrzymanie przed następnym „k.”.
@@ -167,6 +182,7 @@ function parseProtocolSegment(normalized) {
   const plomby = extractPlombyAllListas(normalized);
 
   if (!numer_zlecenia) uwagi.push("brak_numeru_zlecenia");
+  else if (!isZlecenieFormatSample(numer_zlecenia)) uwagi.push("zlecenie_format");
   if (!przewoznik) uwagi.push("brak_przewoznika");
   if (plomby.length === 0) uwagi.push("brak_plomb");
 
@@ -237,12 +253,14 @@ export function protocolStructuralOk(parsed) {
     return parsed.segments.every(
       (s) =>
         s.numer_zlecenia?.trim() &&
+        isZlecenieFormatSample(s.numer_zlecenia) &&
         s.przewoznik?.trim() &&
         s.plomby.length > 0 &&
         s.plomby.every(isPlombaFormatSample)
     );
   }
   if (!parsed.numer_zlecenia?.trim()) return false;
+  if (!isZlecenieFormatSample(parsed.numer_zlecenia)) return false;
   if (!parsed.przewoznik?.trim()) return false;
   if (parsed.plomby.length === 0) return false;
   return parsed.plomby.every(isPlombaFormatSample);
@@ -264,11 +282,13 @@ export function protocolReadoutQuality(parsed, meta = {}) {
   if (parsed.segments?.length) {
     for (const s of parsed.segments) {
       if (!s.numer_zlecenia?.trim()) issues.push("brak_numeru_zlecenia");
+      else if (!isZlecenieFormatSample(s.numer_zlecenia)) issues.push("zlecenie_format");
       if (!s.przewoznik?.trim()) issues.push("brak_przewoznika");
       if (s.plomby.length === 0) issues.push("brak_plomb");
     }
   } else {
     if (!parsed.numer_zlecenia?.trim()) issues.push("brak_numeru_zlecenia");
+    else if (!isZlecenieFormatSample(parsed.numer_zlecenia)) issues.push("zlecenie_format");
     if (!parsed.przewoznik?.trim()) issues.push("brak_przewoznika");
     if (parsed.plomby.length === 0) issues.push("brak_plomb");
   }
@@ -323,7 +343,7 @@ export function pickBetterParsedKey(a, b) {
   if (sa && !sb) return "a";
   if (!sa && sb) return "b";
   const score = (p) =>
-    (p.numer_zlecenia ? 4 : 0) +
+    (isZlecenieFormatSample(p.numer_zlecenia) ? 4 : p.numer_zlecenia?.trim() ? 1 : 0) +
     (p.przewoznik ? 4 : 0) +
     p.plomby.filter(isPlombaFormatSample).length * 2;
   return score(a) >= score(b) ? "a" : "b";

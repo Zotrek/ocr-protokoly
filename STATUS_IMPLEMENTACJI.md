@@ -7,7 +7,7 @@ Krótki przegląd **co działa w POC** i **co zostaje do zrobienia** (zwłaszcza
 ## Zrobione (POC)
 
 ### Przepływ główny
-- Wybór folderu: **Chrome / Edge** — File System Access (zapis Excela w folderze, przenoszenie PDF) albo **Firefox** — `<input webkitdirectory>` / `directory` (OCR jak w Chrome; Excel przez **pobranie**, bez przenoszenia PDF).
+- Wybór folderu: **Chrome / Edge** — File System Access (zapis Excela w folderze, przenoszenie PDF) albo **Firefox** — `<input webkitdirectory>` / `directory` (OCR jak w Chrome; Excel przez **pobranie**, bez przenoszenia PDF). Lista plików: [`folder_jobs.mjs`](folder_jobs.mjs) (`webkitRelativePath` z pierwszym segmentem = nazwa wybranego katalogu).
 - Kolejka **jeden PDF po drugim**, jeden worker **Tesseract.js** (polski), **pdf.js** do rasteru stron.
 - Pola: **numer zlecenia**, **przewoźnik**, **lista plomb** → parser w [`protocol_parse.mjs`](protocol_parse.mjs).
 - **Excel** `wynik_YYYY-MM-DD.xlsx` w folderze roboczym: dopisywanie przy drugim uruchomieniu tego samego dnia, normalizacja nagłówków ze starego pliku, **błąd przy uszkodzonym istniejącym .xlsx** → przerwanie zapisu, PDF **nie** przenoszone ([`export_xlsx.mjs`](export_xlsx.mjs)).
@@ -40,6 +40,7 @@ Krótki przegląd **co działa w POC** i **co zostaje do zrobienia** (zwłaszcza
 - `node tests/roi_pick_selftest.mjs` (wybór `regions_norm` vs `regions_norm_narrow`)
 - `node tests/pdf_errors_selftest.mjs`
 - `node tests/excel_export_selftest.mjs`
+- `node tests/folder_jobs_selftest.mjs` (ścieżki `webkitRelativePath` / Firefox)
 
 ### Dokumentacja operacyjna
 - [`README.md`](README.md), [`HOSTING.md`](HOSTING.md).
@@ -52,7 +53,7 @@ Krótki przegląd **co działa w POC** i **co zostaje do zrobienia** (zwłaszcza
 - [x] **Przykładowe skany** w `dane testowe/` (m.in. wąska strona ~578 pt, wielostronicowe bez tekstu) — pod kątem ROI i wydajności.
 - [ ] **Próbki skanów bitowych** (kontrast, skos, zagięcia, dopiski odręczne) — dalsze edge case’y.
 - [ ] **Dopasowanie ROI** do skanów (marginesy, ewentualnie deskew / kontrast przed OCR); pierwsza iteracja: `regions_norm` / `regions_norm_narrow` + próg szerokości w pt.
-- [ ] **Ostateczna długość i regex** `numer_zlecenia` (obecnie dowolna liczba cyfr z etykiety) — do potwierdzenia; **`numer_plomby`:** stałe `PLOMBA_LEN_EXCEL` / `PLOMBA_RAW_LEN_*` w [`protocol_parse.mjs`](protocol_parse.mjs) (łatwa zmiana progu).
+- [ ] **Ostateczna długość** `numer_zlecenia` — POC: `ZLECENIE_LEN_MIN` / `ZLECENIE_LEN_MAX` + `zlecenie_format` w [`protocol_parse.mjs`](protocol_parse.mjs) (do potwierdzenia po próbkach); **`numer_plomby`:** `PLOMBA_LEN_EXCEL` / `PLOMBA_RAW_LEN_*`.
 - [x] **Progi confidence per pole (ROI str. 1):** opcjonalne pola w UI + `confidenceMinRoi` w [`protocol_parse.mjs`](protocol_parse.mjs) (`protocolReadoutQuality`); puste pole ROI = próg ogólny z „Próg OCR”.
 - [ ] **Dopiski odręczne** w polach — heurystyka lub flaga z silnika (§4 spec) → na razie **nie** zaimplementowane.
 
@@ -67,7 +68,7 @@ Krótki przegląd **co działa w POC** i **co zostaje do zrobienia** (zwłaszcza
 - [x] **Terminacja workera OCR** przy `pagehide` (oszczędność zasobów).
 
 ### Spec — otwarte punkty (skrót)
-Pełna lista checkboxów: **§8** w [`OCR_protokoly_skan_spec.md`](OCR_protokoly_skan_spec.md). Najważniejsze nadal otwarte: **skany bitowe**, **regexy/długości**, **ROI po skanach**, **progi per pole**, **dopiski odręczne**.
+Pełna lista checkboxów: **§8** w [`OCR_protokoly_skan_spec.md`](OCR_protokoly_skan_spec.md). Nadal m.in.: **skany bitowe**, **dopasowanie ROI**, **ostateczne długości zlecenia**, **dopiski odręczne**.
 
 ---
 
@@ -81,9 +82,10 @@ Pełna lista checkboxów: **§8** w [`OCR_protokoly_skan_spec.md`](OCR_protokoly
 | `roi_ocr.mjs` | ROI + OCR + confidence na wycinkach |
 | `export_xlsx.mjs` | Wiersze Excel, merge, zapis |
 | `pdf_errors.mjs` | Komunikaty błędów PDF |
+| `folder_jobs.mjs` | PDF z wyboru folderu (Firefox / `webkitdirectory`) |
 | `calibration/roi_default.json` | Domyślne ROI dla str. 1 |
 | `tools/calibrate_layout.py` | Generowanie `roi_hints.json` z PDF z tekstem |
 
 ---
 
-*Ostatnia aktualizacja dokumentu: 2026-04-10 — m.in. osobne progi ROI (opcjonalnie), stałe długości plomb, skrypty lokalnego serwera.*
+*Ostatnia aktualizacja dokumentu: 2026-04-10 — m.in. walidacja długości numeru zlecenia (POC), `folder_jobs.mjs`, osobne progi ROI.*

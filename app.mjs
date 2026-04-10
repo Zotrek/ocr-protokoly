@@ -17,6 +17,7 @@ import {
   writeWorkbookToDirectory,
 } from "./export_xlsx.mjs";
 import { humanizePdfError } from "./pdf_errors.mjs";
+import { pdfJobsFromWebkitFileList, SKIP_DIR_NAMES } from "./folder_jobs.mjs";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc =
   "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.worker.min.mjs";
@@ -68,7 +69,6 @@ function setBatchFormDisabled(disabled) {
 }
 
 const STATUS_IDLE = "Oczekuję na start.";
-const SKIP_DIR_NAMES = new Set(["done", "problematyczne"]);
 const LS_OCR_CONF_MIN = "ocr_proto_conf_min";
 const LS_OCR_CONF_ROI_ZLECENIE = "ocr_proto_conf_roi_numer_zlecenia";
 const LS_OCR_CONF_ROI_LISTA = "ocr_proto_conf_roi_lista_plomb";
@@ -647,34 +647,7 @@ el.inputDir.addEventListener("change", async () => {
   const list = el.inputDir.files ? Array.from(el.inputDir.files) : [];
   el.inputDir.value = "";
   const recurse = el.chkRecurse.checked;
-  /** @type {PdfJob[]} */
-  const jobs = [];
-  for (const f of list) {
-    if (!f.name.toLowerCase().endsWith(".pdf")) continue;
-    const relFull = (f.webkitRelativePath || f.name)
-      .replace(/\\/g, "/")
-      .replace(/^\/+|\/+$/g, "");
-    if (!relFull) continue;
-    const segments = relFull.split("/").filter((s) => s.length > 0);
-    if (segments.length === 0) continue;
-    if (segments.slice(0, -1).some((dir) => SKIP_DIR_NAMES.has(dir))) continue;
-    /**
-     * `webkitRelativePath` zwykle zaczyna się od nazwy wybranego folderu (`Folder/plik.pdf`).
-     * Nie traktuj tego jak „podfolderu”: ścieżka względna do Excela = bez tego pierwszego segmentu
-     * (jak przy File System Access w Chrome — tylko `plik.pdf` w korzeniu).
-     */
-    const inner = segments.length > 1 ? segments.slice(1) : segments;
-    const rel = inner.join("/");
-    if (!recurse && inner.length > 1) continue;
-    const excelName = rel;
-    const moveTargetName = excelName.includes("/") ? excelName.replace(/\//g, "__") : excelName;
-    jobs.push({
-      excelName,
-      moveTargetName,
-      handle: null,
-      getFile: async () => f,
-    });
-  }
+  const jobs = pdfJobsFromWebkitFileList(list, recurse);
   if (list.length > 0 && jobs.length === 0) {
     setStatus("Brak plików .pdf (sprawdź podfoldery lub opcję „Szukaj w podfolderach”).");
     return;
