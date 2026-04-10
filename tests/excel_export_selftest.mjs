@@ -20,7 +20,7 @@ const row = normalizeExcelRow({ UWAGI_ODCZYT: "x" });
 assert.equal(row.Uwagi_odczyt, "x");
 
 const mixedPlomb = parseProtocolText(`
-Zlecenie transportowe nr: 1
+Zlecenie transportowe nr: 1460
 Przewoźnik: X
 Miejsce dostawy: Y
 Lista odebranych plomb:

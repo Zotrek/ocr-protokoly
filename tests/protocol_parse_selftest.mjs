@@ -35,7 +35,7 @@ assert.ok(nativeTextHasListaPlomb("Lista o debranych plomb:\n1. x"));
 assert.ok(nativeTextHasListaPlomb("Lista oderbranych plomby:\n1. x"));
 assert.ok(!nativeTextHasListaPlomb("same random chars no header"));
 
-const SYNTH = `Zlecenie transportowe nr: 42
+const SYNTH = `Zlecenie transportowe nr: 1460
 
 Przewoźnik: ACME Transport Jan Kowalski ul. Testowa 1, 00-001 Warszawa
 
@@ -49,7 +49,7 @@ Uwagi: przykład
 `;
 
 const p = parseProtocolText(SYNTH);
-assert.equal(p.numer_zlecenia, "42");
+assert.equal(p.numer_zlecenia, "1460");
 assert.ok(p.przewoznik.includes("ACME"));
 assert.deepEqual(p.plomby, ["700000000340087", "700000000340022"]);
 assert.equal(p.uwagi_parse.length, 0);
@@ -130,18 +130,20 @@ assert.ok(!qRawNoRoi.issues.some((i) => /podejrzenie_odreczne/.test(i)));
 
 assert.equal(OCR_CONFIDENCE_MIN, 55);
 assert.equal(PLOMBA_LEN_EXCEL, 15);
-assert.equal(PLOMBA_RAW_LEN_MIN, 12);
-assert.equal(PLOMBA_RAW_LEN_MAX, 18);
-assert.equal(ZLECENIE_LEN_MIN, 1);
-assert.equal(ZLECENIE_LEN_MAX, 12);
-assert.ok(isZlecenieFormatSample("42"));
+assert.equal(PLOMBA_RAW_LEN_MIN, 13);
+assert.equal(PLOMBA_RAW_LEN_MAX, 17);
+assert.equal(ZLECENIE_LEN_MIN, 4);
+assert.equal(ZLECENIE_LEN_MAX, 10);
+assert.ok(isZlecenieFormatSample("1460"));           // sam numer 4-cyfrowy
 assert.ok(isZlecenieFormatSample("123456"));         // 6 cyfr — maksimum bez roku
-assert.ok(isZlecenieFormatSample("1460/2026"));      // format NNNN/RRRR (rzeczywiste skany)
+assert.ok(isZlecenieFormatSample("1460/2026"));      // format NNNN/RRRR (rzeczywiste skany CCF)
+assert.ok(isZlecenieFormatSample("12345/2026"));     // 5-cyfrowy numer z rokiem — max
+assert.ok(!isZlecenieFormatSample("42"));            // za krótki (< MIN=4)
 assert.ok(!isZlecenieFormatSample("9".repeat(7)));   // >6 cyfr bez roku — za długi
 assert.ok(!isZlecenieFormatSample("1460/202"));      // rok za krótki (3 cyfry)
 assert.ok(!isZlecenieFormatSample(""));
 
-const badZlec = parseProtocolText(SYNTH.replace("nr: 42", `nr: ${"9".repeat(7)}`));
+const badZlec = parseProtocolText(SYNTH.replace("nr: 1460", `nr: ${"9".repeat(7)}`));
 assert.ok(badZlec.uwagi_parse.includes("zlecenie_format"));
 assert.ok(!protocolStructuralOk(badZlec));
 const qBadZlec = protocolReadoutQuality(badZlec);
@@ -153,7 +155,7 @@ const badPlomb = parseProtocolText(
 );
 assert.ok(!protocolStructuralOk(badPlomb));
 
-const a = parseProtocolText("Zlecenie transportowe nr: 1\nPrzewoźnik: X\nMiejsce dostawy: Y\nLista odebranych plomb:\n1. 700000000340087\n");
+const a = parseProtocolText("Zlecenie transportowe nr: 1460\nPrzewoźnik: X\nMiejsce dostawy: Y\nLista odebranych plomb:\n1. 700000000340087\n");
 const b = parseProtocolText("");
 assert.equal(pickBetterParsedKey(a, b), "a");
 
@@ -170,27 +172,27 @@ assert.equal(row.numer_plomby, "700000000340087");
 assert.equal(row.Uwagi_odczyt, "ok");
 
 const ocrLike = parseProtocolText(`
-Zlecenie  transportowe  nr:  99
+Zlecenie  transportowe  nr:  1099
 Przewoźnik: Firma Test
 Miejsce dostawy: X
 Lista odebranych plomb:
 1.  700000000340087  
 `);
-assert.equal(ocrLike.numer_zlecenia, "99");
+assert.equal(ocrLike.numer_zlecenia, "1099");
 assert.deepEqual(ocrLike.plomby, ["700000000340087"]);
 
 const spacedPlomb = parseProtocolText(`
-Zlecenie transportowe nr: 5
+Zlecenie transportowe nr: 1005
 Przewoznik: Firma
 Miejsce dostawy: X
 Lista odebranych plomb:
 1. 7000 0000 0340 087
 `);
-assert.equal(spacedPlomb.numer_zlecenia, "5");
+assert.equal(spacedPlomb.numer_zlecenia, "1005");
 assert.deepEqual(spacedPlomb.plomby, ["700000000340087"]);
 
 const asciiCarrier = parseProtocolText(`
-Zlecenie transportowe nr: 6
+Zlecenie transportowe nr: 1006
 Przewoznik: ABC Sp. z o.o.
 Miejsce dostawy: Y
 Lista odebranych plomb:
@@ -200,7 +202,7 @@ assert.ok(asciiCarrier.przewoznik.includes("ABC"));
 assert.deepEqual(asciiCarrier.plomby, ["700000000340087"]);
 
 const listaPlomby = parseProtocolText(`
-Zlecenie transportowe nr: 7
+Zlecenie transportowe nr: 1007
 Przewoźnik: Z
 Miejsce dostawy: W
 Lista odebranych plomby:
@@ -209,7 +211,7 @@ Lista odebranych plomby:
 assert.deepEqual(listaPlomby.plomby, ["700000000340087"]);
 
 const listaOcrSpace = parseProtocolText(`
-Zlecenie transportowe nr: 21
+Zlecenie transportowe nr: 1021
 Przewoźnik: Z
 Miejsce dostawy: W
 Lista o debranych plomb:
@@ -218,7 +220,7 @@ Lista o debranych plomb:
 assert.deepEqual(listaOcrSpace.plomby, ["700000000340087"]);
 
 const listaOcrTypo = parseProtocolText(`
-Zlecenie transportowe nr: 22
+Zlecenie transportowe nr: 1022
 Przewoźnik: Z
 Miejsce dostawy: W
 Lista oderbranych plomb:
@@ -227,7 +229,7 @@ Lista oderbranych plomb:
 assert.deepEqual(listaOcrTypo.plomby, ["700000000340087"]);
 
 const twoCol = parseProtocolText(`
-Zlecenie transportowe nr: 8
+Zlecenie transportowe nr: 1008
 Przewoźnik: Sped
 Miejsce dostawy: M
 Lista odebranych plomb:
@@ -237,32 +239,32 @@ assert.deepEqual(twoCol.plomby, ["700000000340087", "700000000340022"]);
 assert.ok(!twoCol.segments);
 
 const multi = parseProtocolText(`
-Zlecenie transportowe nr: 10
+Zlecenie transportowe nr: 1010
 Przewoźnik: Firma A
 Miejsce dostawy: X
 Lista odebranych plomb:
 1. 700000000340087
 
-Zlecenie transportowe nr: 11
+Zlecenie transportowe nr: 1011
 Przewoźnik: Firma B
 Miejsce dostawy: Y
 Lista odebranych plomb:
 1. 700000000340022
 `);
 assert.ok(multi.segments && multi.segments.length === 2);
-assert.equal(multi.segments[0].numer_zlecenia, "10");
-assert.equal(multi.segments[1].numer_zlecenia, "11");
+assert.equal(multi.segments[0].numer_zlecenia, "1010");
+assert.equal(multi.segments[1].numer_zlecenia, "1011");
 assert.deepEqual(multi.plomby, ["700000000340087", "700000000340022"]);
 const qMulti = protocolReadoutQuality(multi);
 assert.ok(qMulti.ok);
 const rowsMulti = buildExcelRows("x.pdf", multi, qMulti);
 assert.equal(rowsMulti.length, 2);
-assert.equal(rowsMulti[0].numer_zlecenia, "10");
-assert.equal(rowsMulti[1].numer_zlecenia, "11");
+assert.equal(rowsMulti[0].numer_zlecenia, "1010");
+assert.equal(rowsMulti[1].numer_zlecenia, "1011");
 
 // RE_PRZEWOZ_START: OCR spacja w słowie „Przewoźnik" (np. „Przew oznik")
 const ocrSpaceCarrier = parseProtocolText(`
-Zlecenie transportowe nr: 99
+Zlecenie transportowe nr: 1099
 Przew oznik: Spedycja X Sp z oo
 Miejsce dostawy: Y
 Lista odebranych plomb:
@@ -272,7 +274,7 @@ assert.ok(ocrSpaceCarrier.przewoznik.includes("Spedycja"), "OCR spacja w Przewo�
 
 // RE_PRZEWOZ_START: bez ogonka „ó" (Przewoznik)
 const asciiCarrier2 = parseProtocolText(`
-Zlecenie transportowe nr: 100
+Zlecenie transportowe nr: 1100
 Przewoznik: Transport ABC
 Miejsce dostawy: Y
 Lista odebranych plomb:
@@ -291,15 +293,15 @@ Lista odebranych plomb:
 assert.equal(ocrSpaceNr.numer_zlecenia, "12345", "OCR spacja w numerze zlecenia");
 assert.ok(isZlecenieFormatSample(ocrSpaceNr.numer_zlecenia));
 
-// RE_ZLECENIE: numer z wieloma spacjami (np. „1 2 3")
+// RE_ZLECENIE: numer z wieloma spacjami (np. „1 2 3 4" → „1234")
 const ocrSpaceNr2 = parseProtocolText(`
-Zlecenie transportowe nr: 1 2 3
+Zlecenie transportowe nr: 1 2 3 4
 Przewoznik: Firma
 Miejsce dostawy: X
 Lista odebranych plomb:
 1. 700000000340087
 `);
-assert.equal(ocrSpaceNr2.numer_zlecenia, "123");
+assert.equal(ocrSpaceNr2.numer_zlecenia, "1234");
 
 // === Rzeczywiste skany CCF (kwiecień 2026) ===
 

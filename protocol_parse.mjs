@@ -16,13 +16,14 @@
 /** @typedef {{ numer_zlecenia: string, przewoznik: string, lista_plomb: string }} RoiOcrRawTexts */
 
 /**
- * Format numeru zlecenia — rzeczywiste skany: „NNNN/YYYY" (np. „1460/2026").
- * Zakres długości uwzględnia oba warianty: sam numer (1–6 cyfr) i z rokiem (9 znaków).
+ * Format numeru zlecenia — potwierdzony na próbkach CCF 2026: „NNNN/YYYY" (np. „1460/2026").
+ * MIN=4: sam numer (np. „1460"); MAX=10: numer 5-cyfrowy z rokiem („12345/2026").
+ * Regex: 3–6 cyfr + opcjonalny „/YYYY" — margines tolerancji ±1 cyfra dla OCR.
  */
-export const ZLECENIE_LEN_MIN = 1;
-export const ZLECENIE_LEN_MAX = 12;
+export const ZLECENIE_LEN_MIN = 4;
+export const ZLECENIE_LEN_MAX = 10;
 /** Walidacja: sam numer (np. „1460") lub numer z rokiem (np. „1460/2026"). */
-const RE_ZLECENIE_DIGITS = /^\d{1,6}(?:\/\d{4})?$/;
+const RE_ZLECENIE_DIGITS = /^\d{3,6}(?:\/\d{4})?$/;
 
 /**
  * Numer zlecenia — format „NNNN/YYYY" (skany) lub same cyfry (eksport Word).
@@ -123,11 +124,14 @@ function plombyFromListLine(line) {
 /** Średnia pewność Tesseract (0–100); poniżej → problematyczne (spec §4). */
 export const OCR_CONFIDENCE_MIN = 55;
 
-/** Docelowy format numeru plomby w Excelu (Word / arkusz-mapa). */
+/** Docelowy format numeru plomby — potwierdzony na próbkach CCF: dokładnie 15 cyfr. */
 export const PLOMBA_LEN_EXCEL = 15;
-/** Zakres długości surowego numeru z listy (OCR) przed walidacją docelową. */
-export const PLOMBA_RAW_LEN_MIN = 12;
-export const PLOMBA_RAW_LEN_MAX = 18;
+/**
+ * Zakres długości surowego numeru z OCR — margines ±2 cyfry wokół 15:
+ * MIN=13 (OCR może wypaść 2 cyfry), MAX=17 (OCR może wstawić 2 cyfry).
+ */
+export const PLOMBA_RAW_LEN_MIN = 13;
+export const PLOMBA_RAW_LEN_MAX = 17;
 
 const RE_PLOMBA_RAW_DIGITS = new RegExp(`^\\d{${PLOMBA_RAW_LEN_MIN},${PLOMBA_RAW_LEN_MAX}}$`);
 const RE_PLOMBA_EXCEL_DIGITS = new RegExp(`^\\d{${PLOMBA_LEN_EXCEL}}$`);
